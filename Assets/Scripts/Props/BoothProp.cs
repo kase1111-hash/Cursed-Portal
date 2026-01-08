@@ -56,11 +56,14 @@ public class BoothProp : MonoBehaviour, IInteractable
         }
 
         // Setup lights
-        foreach (Light light in boothLights)
+        if (boothLights != null)
         {
-            if (light != null)
+            foreach (Light light in boothLights)
             {
-                light.color = normalLightColor;
+                if (light != null)
+                {
+                    light.color = normalLightColor;
+                }
             }
         }
 
@@ -111,6 +114,8 @@ public class BoothProp : MonoBehaviour, IInteractable
     /// </summary>
     private void UpdateLightColors(float t)
     {
+        if (boothLights == null) return;
+
         foreach (Light light in boothLights)
         {
             if (light != null)
@@ -177,11 +182,14 @@ public class BoothProp : MonoBehaviour, IInteractable
         }
 
         // Dim all booth lights
-        foreach (Light light in boothLights)
+        if (boothLights != null)
         {
-            if (light != null)
+            foreach (Light light in boothLights)
             {
-                light.intensity = 0.2f;
+                if (light != null)
+                {
+                    light.intensity = 0.2f;
+                }
             }
         }
 
@@ -224,12 +232,15 @@ public class BoothProp : MonoBehaviour, IInteractable
         hasTriggered = false;
         zoneTimer = 0f;
 
-        foreach (Light light in boothLights)
+        if (boothLights != null)
         {
-            if (light != null)
+            foreach (Light light in boothLights)
             {
-                light.color = normalLightColor;
-                light.intensity = 1f;
+                if (light != null)
+                {
+                    light.color = normalLightColor;
+                    light.intensity = 1f;
+                }
             }
         }
 

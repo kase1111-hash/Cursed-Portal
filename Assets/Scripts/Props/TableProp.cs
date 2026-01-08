@@ -43,11 +43,14 @@ public class TableProp : MonoBehaviour, IInteractable
     private void Start()
     {
         // Initialize candles
-        foreach (Light candle in candleLights)
+        if (candleLights != null)
         {
-            if (candle != null)
+            foreach (Light candle in candleLights)
             {
-                candle.color = normalCandleColor;
+                if (candle != null)
+                {
+                    candle.color = normalCandleColor;
+                }
             }
         }
 
@@ -77,7 +80,7 @@ public class TableProp : MonoBehaviour, IInteractable
     /// </summary>
     private void UpdateCandleEffects()
     {
-        if (!isSeanceActive) return;
+        if (!isSeanceActive || candleLights == null) return;
 
         // Pulsing candle colors during séance
         float pulse = (Mathf.Sin(Time.time * 3f) + 1f) / 2f;
@@ -147,11 +150,14 @@ public class TableProp : MonoBehaviour, IInteractable
         }
 
         // Candles flicker intensely
-        foreach (CandleFlicker flicker in candleFlickers)
+        if (candleFlickers != null)
         {
-            if (flicker != null)
+            foreach (CandleFlicker flicker in candleFlickers)
             {
-                flicker.SetBaseIntensity(2f);
+                if (flicker != null)
+                {
+                    flicker.SetBaseIntensity(2f);
+                }
             }
         }
 
@@ -180,11 +186,14 @@ public class TableProp : MonoBehaviour, IInteractable
         }
 
         // All candles flare then dim
-        foreach (Light candle in candleLights)
+        if (candleLights != null)
         {
-            if (candle != null)
+            foreach (Light candle in candleLights)
             {
-                candle.intensity = 5f;
+                if (candle != null)
+                {
+                    candle.intensity = 5f;
+                }
             }
         }
 
@@ -203,12 +212,15 @@ public class TableProp : MonoBehaviour, IInteractable
         yield return new WaitForSeconds(0.3f);
 
         // Dim candles dramatically
-        foreach (Light candle in candleLights)
+        if (candleLights != null)
         {
-            if (candle != null)
+            foreach (Light candle in candleLights)
             {
-                candle.intensity = 0.3f;
-                candle.color = activeCandleColor;
+                if (candle != null)
+                {
+                    candle.intensity = 0.3f;
+                    candle.color = activeCandleColor;
+                }
             }
         }
 
@@ -257,12 +269,15 @@ public class TableProp : MonoBehaviour, IInteractable
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
 
-            foreach (Light candle in candleLights)
+            if (candleLights != null)
             {
-                if (candle != null)
+                foreach (Light candle in candleLights)
                 {
-                    candle.intensity = Mathf.Lerp(0.3f, 1f, t);
-                    candle.color = Color.Lerp(activeCandleColor, normalCandleColor, t);
+                    if (candle != null)
+                    {
+                        candle.intensity = Mathf.Lerp(0.3f, 1f, t);
+                        candle.color = Color.Lerp(activeCandleColor, normalCandleColor, t);
+                    }
                 }
             }
 
@@ -275,11 +290,14 @@ public class TableProp : MonoBehaviour, IInteractable
         }
 
         // Reset flickers
-        foreach (CandleFlicker flicker in candleFlickers)
+        if (candleFlickers != null)
         {
-            if (flicker != null)
+            foreach (CandleFlicker flicker in candleFlickers)
             {
-                flicker.SetBaseIntensity(1f);
+                if (flicker != null)
+                {
+                    flicker.SetBaseIntensity(1f);
+                }
             }
         }
 
@@ -325,11 +343,14 @@ public class TableProp : MonoBehaviour, IInteractable
         isHighlighted = true;
 
         // Candles react
-        foreach (Light candle in candleLights)
+        if (candleLights != null)
         {
-            if (candle != null)
+            foreach (Light candle in candleLights)
             {
-                candle.intensity = 1.5f;
+                if (candle != null)
+                {
+                    candle.intensity = 1.5f;
+                }
             }
         }
 
@@ -346,11 +367,14 @@ public class TableProp : MonoBehaviour, IInteractable
 
         if (!isSeanceActive)
         {
-            foreach (Light candle in candleLights)
+            if (candleLights != null)
             {
-                if (candle != null)
+                foreach (Light candle in candleLights)
                 {
-                    candle.intensity = 1f;
+                    if (candle != null)
+                    {
+                        candle.intensity = 1f;
+                    }
                 }
             }
 

@@ -72,7 +72,7 @@ public class PostFXController : MonoBehaviour
         if (volume == null)
         {
             // Try to find volume in scene
-            volume = FindObjectOfType<Volume>();
+            volume = FindFirstObjectByType<Volume>();
             if (volume == null)
             {
                 Debug.LogError("[PostFXController] No Volume found! Post-processing effects disabled.");
