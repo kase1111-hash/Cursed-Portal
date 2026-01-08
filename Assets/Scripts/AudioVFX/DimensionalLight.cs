@@ -35,6 +35,7 @@ public class DimensionalLight : MonoBehaviour
     // State
     private float flickerTimer = 0f;
     private bool isFlickering = false;
+    private float intensityMultiplier = 1f;
 
     private void Start()
     {
@@ -72,7 +73,7 @@ public class DimensionalLight : MonoBehaviour
     private void UpdateIntensity()
     {
         float pulse = Mathf.Sin(Time.time * pulseSpeed) * pulseAmplitude;
-        float intensity = baseIntensity + pulse;
+        float intensity = (baseIntensity + pulse) * intensityMultiplier;
 
         // Apply flicker
         if (isFlickering)
@@ -81,6 +82,22 @@ public class DimensionalLight : MonoBehaviour
         }
 
         targetLight.intensity = intensity;
+    }
+
+    /// <summary>
+    /// Sets an intensity multiplier for dynamic effects.
+    /// </summary>
+    public void SetIntensityMultiplier(float multiplier)
+    {
+        intensityMultiplier = Mathf.Max(0f, multiplier);
+    }
+
+    /// <summary>
+    /// Gets the current intensity multiplier.
+    /// </summary>
+    public float GetIntensityMultiplier()
+    {
+        return intensityMultiplier;
     }
 
     /// <summary>

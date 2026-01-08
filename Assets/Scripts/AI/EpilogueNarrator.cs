@@ -212,6 +212,22 @@ public class EpilogueNarrator : MonoBehaviour
         DisplayEpilogue(fallbackEpilogue);
     }
 
+    /// <summary>
+    /// Alias for BeginNarration - called by FinaleManager.
+    /// </summary>
+    public void BeginEpilogue()
+    {
+        BeginNarration();
+    }
+
+    /// <summary>
+    /// Checks if narration has begun.
+    /// </summary>
+    public bool HasNarrated()
+    {
+        return hasNarrated;
+    }
+
     // Request/Response structures
     [System.Serializable]
     private class EpilogueRequest

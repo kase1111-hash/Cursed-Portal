@@ -326,4 +326,51 @@ public class UIEpilogue : MonoBehaviour
         isDisplaying = false;
         displayComplete = true;
     }
+
+    /// <summary>
+    /// Shows the awakening prompt.
+    /// Called by FinaleManager when epilogue is complete.
+    /// </summary>
+    public void ShowPrompt()
+    {
+        if (promptText != null)
+        {
+            promptText.gameObject.SetActive(true);
+            promptText.text = awakenPrompt;
+            StartCoroutine(PulsePrompt());
+        }
+        displayComplete = true;
+    }
+
+    /// <summary>
+    /// Shows a final message during awakening.
+    /// </summary>
+    public void ShowFinalMessage(string message)
+    {
+        if (epilogueText != null)
+        {
+            epilogueText.text = message;
+        }
+
+        if (promptText != null)
+        {
+            promptText.gameObject.SetActive(false);
+        }
+    }
+
+    /// <summary>
+    /// Checks if display is complete.
+    /// </summary>
+    public bool IsDisplayComplete()
+    {
+        return displayComplete;
+    }
+
+    /// <summary>
+    /// Checks if currently displaying.
+    /// </summary>
+    public bool IsDisplaying()
+    {
+        return isDisplaying;
+    }
 }
