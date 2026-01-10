@@ -6,6 +6,20 @@ LLM Integration: LLMUnity + local Ollama backend (Llama 3.x)
 Mood: Gothic horror, escalating dread, interactive storytelling
 Modularity Goal: Each system can be generated and tested independently.
 
+## What Is Cursed Portal?
+
+**Cursed Portal** is an **LLM-powered gothic horror game** that combines **AI-driven narrative** with **interactive storytelling**. Built on Unity with **local LLM integration** via Ollama, this **atmospheric horror experience** channels the spirit of Edgar Allan Poe through **natural language AI characters** that respond dynamically to player interactions.
+
+This project explores **human-AI collaboration** in gaming, where **procedural horror** and **AI character dialogue** create emergent, personalized supernatural encounters. The game features **sentiment-aware environmental effects**, **AI personality persistence**, and **LLM memory systems** that remember past conversations across sessions.
+
+### Key Features
+- **Natural language gaming** – Chat with AI spirits using conversational prompts
+- **Procedural atmospheric horror** – Dynamic fog, lighting, and audio driven by AI sentiment analysis
+- **Local LLM privacy** – All AI processing runs locally via Ollama (Llama 3.x)
+- **AI memory persistence** – Spirits remember your past conversations
+- **Escalating dread system** – Progressive horror intensity based on player engagement
+- **Edgar Allan Poe themed** – Authentic spirit personas from classic gothic literature
+
 🧱 SYSTEM MAP (for AI codegen)
 Module ID
 System
@@ -1372,3 +1386,55 @@ Proceed to code generation in sequential order (M1 → M25), then finalize with 
 Build: PC/WebGL (local LLM needs PC).
 Test: Drop Poe TXT, chat – watch spook ramp.
 Expand: User TXT upload for custom books.
+
+---
+
+## 🔗 Part of the Ecosystem
+
+Cursed Portal shares infrastructure and design philosophy with these related projects:
+
+### 🔗 NatLangChain Ecosystem
+Natural language blockchain and intent-native protocols for human-readable systems.
+
+| Repository | Description |
+|------------|-------------|
+| [NatLangChain](https://github.com/kase1111-hash/NatLangChain) | Prose-first, intent-native blockchain protocol for natural language smart contracts |
+| [IntentLog](https://github.com/kase1111-hash/IntentLog) | Git for human reasoning – version control for decisions and design rationale |
+| [RRA-Module](https://github.com/kase1111-hash/RRA-Module) | Revenant Repo Agent – converts abandoned repos into autonomous licensing agents |
+| [mediator-node](https://github.com/kase1111-hash/mediator-node) | LLM-powered mediation layer for matching, negotiation, and deal closure |
+| [ILR-module](https://github.com/kase1111-hash/ILR-module) | IP & Licensing Reconciliation for dispute resolution |
+| [Finite-Intent-Executor](https://github.com/kase1111-hash/Finite-Intent-Executor) | Posthumous execution of predefined intent via Solidity smart contracts |
+
+### 🤖 Agent-OS Ecosystem
+Natural language native operating systems and cognitive infrastructure for AI agents.
+
+| Repository | Description |
+|------------|-------------|
+| [Agent-OS](https://github.com/kase1111-hash/Agent-OS) | Natural language operating system (NLOS) for AI agent coordination |
+| [synth-mind](https://github.com/kase1111-hash/synth-mind) | NLOS-based agent with psychological modules for empathy and continuity |
+| [boundary-daemon-](https://github.com/kase1111-hash/boundary-daemon-) | Trust enforcement layer defining cognition boundaries for Agent OS |
+| [memory-vault](https://github.com/kase1111-hash/memory-vault) | Sovereign, offline-capable storage for cognitive artifacts |
+| [value-ledger](https://github.com/kase1111-hash/value-ledger) | Economic accounting layer for cognitive work (ideas, effort, novelty) |
+| [learning-contracts](https://github.com/kase1111-hash/learning-contracts) | Safety protocols for AI learning and data governance |
+
+### 🛡️ Security Infrastructure
+| Repository | Description |
+|------------|-------------|
+| [Boundary-SIEM](https://github.com/kase1111-hash/Boundary-SIEM) | Security Information and Event Management for AI systems |
+
+### 🎮 Game Development
+| Repository | Description |
+|------------|-------------|
+| [Shredsquatch](https://github.com/kase1111-hash/Shredsquatch) | 3D first-person snowboarding infinite runner (SkiFree spiritual successor) |
+| [Midnight-pulse](https://github.com/kase1111-hash/Midnight-pulse) | Procedurally generated synthwave night driving experience |
+| [Long-Home](https://github.com/kase1111-hash/Long-Home) | Atmospheric narrative indie game built with Godot |
+
+---
+
+### 🌐 Cross-Ecosystem Themes
+
+This project contributes to broader explorations in:
+- **Authenticity Economy** – Preserving human cognitive labor and intent in AI-augmented systems
+- **Natural Language Programming** – Prose-first development and language-native architecture
+- **Digital Sovereignty** – Self-hosted AI, owned infrastructure, and private AI systems
+- **Human-AI Collaboration** – Building experiences where AI enhances rather than replaces human creativity
