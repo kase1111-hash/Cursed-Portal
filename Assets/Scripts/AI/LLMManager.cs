@@ -212,22 +212,40 @@ public class LLMManager : MonoBehaviour
             if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
             {
                 string response = request.downloadHandler.text;
-                LLMResponse llmResponse = JsonUtility.FromJson<LLMResponse>(response);
+                string responseContent = null;
+
+                try
+                {
+                    LLMResponse llmResponse = JsonUtility.FromJson<LLMResponse>(response);
+                    responseContent = llmResponse.content;
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[LLMManager] Failed to parse LLM response: {e.Message}");
+                    // Attempt to use raw response as fallback
+                    responseContent = response;
+                }
+
+                // Ensure we have valid content
+                if (string.IsNullOrEmpty(responseContent))
+                {
+                    responseContent = "*The spirit speaks in tongues incomprehensible...*";
+                }
 
                 if (UIChat.Instance != null)
                 {
-                    UIChat.Instance.AppendResponse(llmResponse.content);
+                    UIChat.Instance.AppendResponse(responseContent);
                 }
 
                 // Parse emotion and react
-                string emotion = EmotionParser.Detect(llmResponse.content);
+                string emotion = EmotionParser.Detect(responseContent);
                 if (EventManager.Instance != null)
                 {
                     EventManager.Instance.ReactToEmotion(emotion);
                 }
 
                 // Save to memory
-                SaveToMemory(userMessage, llmResponse.content);
+                SaveToMemory(userMessage, responseContent);
             }
             else
             {
