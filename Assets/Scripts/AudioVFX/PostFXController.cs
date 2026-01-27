@@ -277,4 +277,13 @@ public class PostFXController : MonoBehaviour
     {
         return currentLevel;
     }
+
+    private void OnDestroy()
+    {
+        // Clear singleton reference on destroy to prevent memory leaks
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
 }

@@ -48,7 +48,8 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         propRenderer = GetComponent<Renderer>();
         if (propRenderer != null)
         {
-            originalMaterial = propRenderer.material;
+            // Use sharedMaterial to avoid creating a material instance copy (memory leak)
+            originalMaterial = propRenderer.sharedMaterial;
         }
 
         // Setup glow light

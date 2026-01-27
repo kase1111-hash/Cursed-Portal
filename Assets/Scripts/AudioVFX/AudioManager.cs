@@ -90,24 +90,39 @@ public class AudioManager : MonoBehaviour
 
     /// <summary>
     /// Plays whisper ambience for the given spook level.
+    /// Falls back to highest available level if requested level not available.
     /// </summary>
     /// <param name="level">Spook level (0-5)</param>
     public void PlayWhispers(int level)
     {
-        if (whisperClips == null || level >= whisperClips.Length)
+        if (whisperClips == null || whisperClips.Length == 0)
         {
-            Debug.LogWarning($"[AudioManager] No whisper clip for level {level}");
+            Debug.LogWarning("[AudioManager] No whisper clips configured");
             return;
         }
 
-        if (whisperClips[level] == null)
+        // Clamp to available range - use highest available if level exceeds array
+        int actualLevel = Mathf.Clamp(level, 0, whisperClips.Length - 1);
+
+        if (actualLevel != level)
         {
-            Debug.LogWarning($"[AudioManager] Whisper clip at level {level} is null");
-            return;
+            Debug.LogWarning($"[AudioManager] Whisper level {level} out of range, using {actualLevel}");
         }
 
-        currentWhisperLevel = level;
-        whisperSource.clip = whisperClips[level];
+        if (whisperClips[actualLevel] == null)
+        {
+            // Try to find nearest non-null clip
+            int fallbackLevel = FindNearestValidClip(actualLevel);
+            if (fallbackLevel < 0)
+            {
+                Debug.LogWarning($"[AudioManager] No valid whisper clip found");
+                return;
+            }
+            actualLevel = fallbackLevel;
+        }
+
+        currentWhisperLevel = actualLevel;
+        whisperSource.clip = whisperClips[actualLevel];
         whisperSource.volume = baseAmbientVolume + (level * volumePerLevel);
         whisperSource.pitch = baseAmbientPitch + (level * pitchPerLevel);
 
@@ -116,7 +131,26 @@ public class AudioManager : MonoBehaviour
             whisperSource.Play();
         }
 
-        Debug.Log($"[AudioManager] Playing whispers at level {level}");
+        Debug.Log($"[AudioManager] Playing whispers at level {actualLevel}");
+    }
+
+    /// <summary>
+    /// Finds the nearest valid (non-null) whisper clip index.
+    /// </summary>
+    private int FindNearestValidClip(int targetLevel)
+    {
+        // Search outward from target level
+        for (int offset = 0; offset < whisperClips.Length; offset++)
+        {
+            int lower = targetLevel - offset;
+            int higher = targetLevel + offset;
+
+            if (lower >= 0 && whisperClips[lower] != null)
+                return lower;
+            if (higher < whisperClips.Length && whisperClips[higher] != null)
+                return higher;
+        }
+        return -1;
     }
 
     /// <summary>
@@ -246,5 +280,14 @@ public class AudioManager : MonoBehaviour
         if (sfxSource != null) sfxSource.Stop();
         if (voiceSource != null) voiceSource.Stop();
         if (whisperSource != null) whisperSource.Stop();
+    }
+
+    private void OnDestroy()
+    {
+        // Clear singleton reference on destroy to prevent memory leaks
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 }

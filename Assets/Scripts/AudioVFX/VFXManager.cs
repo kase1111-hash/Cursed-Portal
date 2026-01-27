@@ -32,6 +32,10 @@ public class VFXManager : MonoBehaviour
     // Current state
     private int currentLevel = 0;
 
+    // Track fog burst coroutine to prevent stacking
+    private Coroutine activeFogBurstCoroutine;
+    private float baseDensityBeforeBurst;
+
     private void Awake()
     {
         // Singleton pattern with persistence
@@ -107,21 +111,33 @@ public class VFXManager : MonoBehaviour
 
     /// <summary>
     /// Adds a temporary fog burst for dramatic effect.
+    /// Cancels any existing fog burst to prevent stacking.
     /// </summary>
     /// <param name="additionalDensity">Additional density to add</param>
     public void AddFogBurst(float additionalDensity)
     {
-        StartCoroutine(FogBurstCoroutine(additionalDensity, 2f));
+        // Cancel any existing fog burst coroutine to prevent stacking
+        if (activeFogBurstCoroutine != null)
+        {
+            StopCoroutine(activeFogBurstCoroutine);
+            // Restore to base density before starting new burst
+            RenderSettings.fogDensity = baseDensityBeforeBurst;
+        }
+
+        // Store the current base density before burst
+        baseDensityBeforeBurst = baseFogDensity + (currentLevel * fogDensityPerLevel);
+        activeFogBurstCoroutine = StartCoroutine(FogBurstCoroutine(additionalDensity, 2f));
     }
 
     private System.Collections.IEnumerator FogBurstCoroutine(float additionalDensity, float duration)
     {
-        float originalDensity = RenderSettings.fogDensity;
-        RenderSettings.fogDensity += additionalDensity;
+        // Use stored base density for consistent return target
+        float targetDensity = baseDensityBeforeBurst;
+        RenderSettings.fogDensity = targetDensity + additionalDensity;
 
         yield return new WaitForSeconds(duration);
 
-        // Lerp back to original
+        // Lerp back to target (level-appropriate) density
         float elapsed = 0f;
         float lerpDuration = 1f;
         float burstDensity = RenderSettings.fogDensity;
@@ -129,9 +145,12 @@ public class VFXManager : MonoBehaviour
         while (elapsed < lerpDuration)
         {
             elapsed += Time.deltaTime;
-            RenderSettings.fogDensity = Mathf.Lerp(burstDensity, originalDensity, elapsed / lerpDuration);
+            RenderSettings.fogDensity = Mathf.Lerp(burstDensity, targetDensity, elapsed / lerpDuration);
             yield return null;
         }
+
+        RenderSettings.fogDensity = targetDensity;
+        activeFogBurstCoroutine = null;
     }
 
     /// <summary>
@@ -239,9 +258,10 @@ public class VFXManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        // Reset fog on destroy
+        // Clear singleton reference and reset fog on destroy
         if (Instance == this)
         {
+            Instance = null;
             RenderSettings.fogDensity = baseFogDensity;
             RenderSettings.fogColor = baseFogColor;
         }
