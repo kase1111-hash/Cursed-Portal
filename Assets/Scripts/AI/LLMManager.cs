@@ -43,6 +43,10 @@ public class LLMManager : MonoBehaviour
     private SpiritProfiles profiles;
     private bool profilesLoaded = false;
 
+    // Cached story texts to avoid blocking I/O during gameplay
+    private System.Collections.Generic.Dictionary<string, string> cachedStories =
+        new System.Collections.Generic.Dictionary<string, string>();
+
     private void Awake()
     {
         // Singleton pattern with persistence
@@ -61,6 +65,60 @@ public class LLMManager : MonoBehaviour
     private void Start()
     {
         LoadSpiritProfiles();
+        // Pre-load story files in background to avoid blocking during gameplay
+        StartCoroutine(PreloadStoryFiles());
+    }
+
+    /// <summary>
+    /// Pre-loads all story files into cache during startup.
+    /// </summary>
+    private IEnumerator PreloadStoryFiles()
+    {
+        string[] storyFiles = { "raven.txt", "tell-tale-heart.txt", "usher.txt" };
+
+        foreach (string storyFile in storyFiles)
+        {
+            string storyPath = Path.Combine(Application.streamingAssetsPath, "PoeStories", storyFile);
+
+            if (File.Exists(storyPath))
+            {
+                // Use a background thread for file I/O
+                string fileContent = null;
+                bool loadComplete = false;
+
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        fileContent = File.ReadAllText(storyPath);
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"[LLMManager] Failed to preload {storyFile}: {e.Message}");
+                    }
+                    loadComplete = true;
+                });
+
+                // Wait for background load to complete
+                while (!loadComplete)
+                {
+                    yield return null;
+                }
+
+                if (!string.IsNullOrEmpty(fileContent))
+                {
+                    // Truncate to max context length
+                    int truncateLength = Mathf.Min(fileContent.Length, maxContextLength);
+                    cachedStories[storyFile] = fileContent.Substring(0, truncateLength);
+                    Debug.Log($"[LLMManager] Pre-loaded story: {storyFile}");
+                }
+            }
+
+            // Yield between files to prevent frame hitches
+            yield return null;
+        }
+
+        Debug.Log($"[LLMManager] Story preloading complete. Cached {cachedStories.Count} stories.");
     }
 
     /// <summary>
@@ -164,10 +222,18 @@ public class LLMManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Loads story text from StreamingAssets.
+    /// Loads story text from cache or StreamingAssets.
+    /// Uses cached version if available to avoid blocking I/O.
     /// </summary>
     private string LoadStoryText(string storyFile)
     {
+        // Check cache first
+        if (cachedStories.TryGetValue(storyFile, out string cachedText))
+        {
+            return cachedText;
+        }
+
+        // Fallback to synchronous load if not cached (e.g., during preload)
         string storyPath = Path.Combine(Application.streamingAssetsPath, "PoeStories", storyFile);
 
         if (File.Exists(storyPath))
@@ -175,7 +241,12 @@ public class LLMManager : MonoBehaviour
             string fullText = File.ReadAllText(storyPath);
             // Truncate to max context length
             int truncateLength = Mathf.Min(fullText.Length, maxContextLength);
-            return fullText.Substring(0, truncateLength);
+            string truncatedText = fullText.Substring(0, truncateLength);
+
+            // Cache for future use
+            cachedStories[storyFile] = truncatedText;
+
+            return truncatedText;
         }
         else
         {
@@ -191,7 +262,7 @@ public class LLMManager : MonoBehaviour
     {
         string fullPrompt = $"{systemPrompt}\n\nUser: {userMessage}\n\nSpirit:";
 
-        // Create request body
+        // Create request body with consistent stop tokens
         string requestBody = JsonUtility.ToJson(new LLMRequest
         {
             prompt = fullPrompt,
@@ -206,31 +277,14 @@ public class LLMManager : MonoBehaviour
             request.uploadHandler = new UnityEngine.Networking.UploadHandlerRaw(bodyRaw);
             request.downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = 60; // Add timeout
 
             yield return request.SendWebRequest();
 
             if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
             {
                 string response = request.downloadHandler.text;
-                string responseContent = null;
-
-                try
-                {
-                    LLMResponse llmResponse = JsonUtility.FromJson<LLMResponse>(response);
-                    responseContent = llmResponse.content;
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"[LLMManager] Failed to parse LLM response: {e.Message}");
-                    // Attempt to use raw response as fallback
-                    responseContent = response;
-                }
-
-                // Ensure we have valid content
-                if (string.IsNullOrEmpty(responseContent))
-                {
-                    responseContent = "*The spirit speaks in tongues incomprehensible...*";
-                }
+                string responseContent = ParseLLMResponse(response);
 
                 if (UIChat.Instance != null)
                 {
@@ -256,6 +310,51 @@ public class LLMManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Safely parses LLM response with robust null checking.
+    /// </summary>
+    private string ParseLLMResponse(string response)
+    {
+        if (string.IsNullOrEmpty(response))
+        {
+            return "*The spirit speaks in tongues incomprehensible...*";
+        }
+
+        try
+        {
+            LLMResponse llmResponse = JsonUtility.FromJson<LLMResponse>(response);
+
+            // Check if parsing succeeded and content exists
+            if (llmResponse != null && !string.IsNullOrEmpty(llmResponse.content))
+            {
+                return llmResponse.content;
+            }
+
+            // Try alternate response format (some LLMs use "text" or "response")
+            LLMResponseAlt altResponse = JsonUtility.FromJson<LLMResponseAlt>(response);
+            if (altResponse != null)
+            {
+                if (!string.IsNullOrEmpty(altResponse.text))
+                    return altResponse.text;
+                if (!string.IsNullOrEmpty(altResponse.response))
+                    return altResponse.response;
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[LLMManager] Failed to parse LLM response as JSON: {e.Message}");
+        }
+
+        // If response looks like plain text (not JSON), use it directly
+        string trimmed = response.Trim();
+        if (!trimmed.StartsWith("{") && !trimmed.StartsWith("["))
+        {
+            return trimmed;
+        }
+
+        return "*The spirit speaks in tongues incomprehensible...*";
     }
 
     /// <summary>
@@ -302,5 +401,22 @@ public class LLMManager : MonoBehaviour
     private class LLMResponse
     {
         public string content;
+    }
+
+    // Alternate response format for compatibility with different LLM backends
+    [System.Serializable]
+    private class LLMResponseAlt
+    {
+        public string text;
+        public string response;
+    }
+
+    private void OnDestroy()
+    {
+        // Clear singleton reference on destroy to prevent memory leaks
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 }

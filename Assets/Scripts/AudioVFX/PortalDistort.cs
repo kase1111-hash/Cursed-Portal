@@ -43,16 +43,18 @@ public class PortalDistort : MonoBehaviour
 
     private void Awake()
     {
-        // Singleton pattern (but don't persist - scene specific)
-        if (Instance == null)
+        // Singleton pattern (scene-specific, not persistent)
+        // When loading a new scene, transfer state from old instance before replacing
+        if (Instance != null && Instance != this)
         {
-            Instance = this;
+            // Transfer relevant state from previous instance
+            currentEmotion = Instance.currentEmotion;
+            targetDistortion = Instance.targetDistortion;
+            targetHueShift = Instance.targetHueShift;
+            currentDistortion = Instance.currentDistortion;
+            currentHueShift = Instance.currentHueShift;
         }
-        else if (Instance != this)
-        {
-            // Allow multiple instances in different scenes
-            Instance = this;
-        }
+        Instance = this;
     }
 
     private void Start()

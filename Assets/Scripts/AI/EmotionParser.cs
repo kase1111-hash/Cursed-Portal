@@ -16,8 +16,9 @@ public static class EmotionParser
     public const string NEUTRAL = "neutral";
 
     // Regex patterns for emotion detection
+    // Note: "heart" moved to poeHorrorPattern as it's specific to Tell-Tale Heart
     private static readonly Regex terrorPattern = new Regex(
-        @"\b(terror|fear|dread|heart|mad|scream|death|die|dying|blood|horror|shriek|agony|torment|demon|hell|damned|cursed|haunted|possessed)\b",
+        @"\b(terror|fear|dread|mad|scream|death|die|dying|blood|horror|shriek|agony|torment|demon|hell|damned|cursed|haunted|possessed)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
@@ -26,9 +27,9 @@ public static class EmotionParser
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
-    // Special Poe-specific patterns
+    // Special Poe-specific patterns (includes "heart" for Tell-Tale Heart, "beating" for the heartbeat)
     private static readonly Regex poeHorrorPattern = new Regex(
-        @"\b(raven|usher|tell-tale|beating|floorboard|madman|buried|alive|premature|crypt|catacomb|pendulum|pit|masque|red death)\b",
+        @"\b(raven|usher|tell-tale|heart|beating|floorboard|madman|buried|alive|premature|crypt|catacomb|pendulum|pit|masque|red death)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 

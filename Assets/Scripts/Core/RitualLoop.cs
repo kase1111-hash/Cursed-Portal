@@ -263,4 +263,13 @@ public class RitualLoop : MonoBehaviour
         ForceUpdate();
         Debug.Log("[RitualLoop] Reset to initial state");
     }
+
+    private void OnDestroy()
+    {
+        // Clear singleton reference on destroy to prevent memory leaks
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
 }

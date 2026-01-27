@@ -90,10 +90,13 @@ public class EventManager : MonoBehaviour
     {
         SpookLevel = Mathf.Clamp(level, 0, maxSpookLevel);
 
-        // Reset debounce for all levels above current
-        for (int i = level + 1; i <= maxSpookLevel; i++)
+        // Reset debounce for all levels above current (with bounds check)
+        if (levelTriggered != null)
         {
-            levelTriggered[i] = false;
+            for (int i = level + 1; i < levelTriggered.Length && i <= maxSpookLevel; i++)
+            {
+                levelTriggered[i] = false;
+            }
         }
 
         ApplyEffectsForLevel(SpookLevel);
@@ -107,6 +110,13 @@ public class EventManager : MonoBehaviour
     /// <param name="level">The spook level (0-5)</param>
     public void ApplyEffectsForLevel(int level)
     {
+        // Bounds check for levelTriggered array
+        if (levelTriggered == null || level < 0 || level >= levelTriggered.Length)
+        {
+            Debug.LogWarning($"[EventManager] Invalid level {level} or uninitialized levelTriggered array");
+            return;
+        }
+
         // Debounce - only trigger new level effects once
         if (level > 0 && levelTriggered[level])
         {
@@ -230,5 +240,14 @@ public class EventManager : MonoBehaviour
     public float GetNormalizedSpookLevel()
     {
         return (float)SpookLevel / maxSpookLevel;
+    }
+
+    private void OnDestroy()
+    {
+        // Clear singleton reference on destroy to prevent memory leaks
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 }

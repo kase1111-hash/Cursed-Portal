@@ -238,6 +238,7 @@ public class UIChat : MonoBehaviour
 
     /// <summary>
     /// Truncates the log if it exceeds max length.
+    /// Handles rich text tags to prevent broken formatting.
     /// </summary>
     private void TruncateLogIfNeeded()
     {
@@ -248,7 +249,32 @@ public class UIChat : MonoBehaviour
             int newlineIndex = chatLog.text.IndexOf('\n', cutPoint);
             if (newlineIndex > 0)
             {
-                chatLog.text = chatLog.text.Substring(newlineIndex + 1);
+                string truncated = chatLog.text.Substring(newlineIndex + 1);
+
+                // Fix any broken color tags at the start of truncated text
+                // Check if we're inside an unclosed color tag
+                int lastColorOpen = truncated.LastIndexOf("<color=");
+                int lastColorClose = truncated.LastIndexOf("</color>");
+
+                // If there's an open tag after the last close tag, we broke a tag
+                if (lastColorClose < lastColorOpen)
+                {
+                    // Find the end of the broken line and remove it
+                    int nextNewline = truncated.IndexOf('\n');
+                    if (nextNewline > 0)
+                    {
+                        truncated = truncated.Substring(nextNewline + 1);
+                    }
+                }
+
+                // Also check for unclosed tags at the very beginning
+                // If text doesn't start with '<' or starts with '</color>', it might be mid-tag
+                if (truncated.StartsWith("</color>"))
+                {
+                    truncated = truncated.Substring(8); // Remove orphaned closing tag
+                }
+
+                chatLog.text = truncated;
             }
         }
     }

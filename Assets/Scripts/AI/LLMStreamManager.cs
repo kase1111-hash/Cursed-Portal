@@ -18,14 +18,17 @@ public class LLMStreamManager : MonoBehaviour
     [SerializeField] private string streamEndpoint = "http://localhost:8080/completion";
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
+    [SerializeField] private float requestTimeout = 60f; // Timeout in seconds
 
     [Header("Streaming Settings")]
     [SerializeField] private float chunkDelay = 0.05f; // Delay between chunk processing
     [SerializeField] private int minChunkSize = 5; // Minimum characters before triggering effects
 
-    // State
+    // State - use lock object for thread safety
+    private readonly object streamLock = new object();
     private bool isStreaming = false;
     private Coroutine currentStreamCoroutine;
+    private UnityWebRequest activeRequest; // Track active request for cancellation
 
     private void Awake()
     {
@@ -49,13 +52,17 @@ public class LLMStreamManager : MonoBehaviour
     /// <param name="userMessage">The user's message</param>
     public IEnumerator StreamSpiritSpeech(string systemContext, string userMessage)
     {
-        if (isStreaming)
+        // Thread-safe check and set of streaming state
+        lock (streamLock)
         {
-            Debug.LogWarning("[LLMStreamManager] Already streaming, ignoring request");
-            yield break;
+            if (isStreaming)
+            {
+                Debug.LogWarning("[LLMStreamManager] Already streaming, cancelling previous request");
+                CancelStreamInternal();
+            }
+            isStreaming = true;
         }
 
-        isStreaming = true;
         Debug.Log("[LLMStreamManager] Starting stream...");
 
         // Build full prompt
@@ -68,9 +75,14 @@ public class LLMStreamManager : MonoBehaviour
         }
 
         // Use streaming request
-        yield return StartCoroutine(StreamRequest(fullPrompt));
+        yield return currentStreamCoroutine = StartCoroutine(StreamRequest(fullPrompt));
 
-        isStreaming = false;
+        lock (streamLock)
+        {
+            isStreaming = false;
+            currentStreamCoroutine = null;
+            activeRequest = null;
+        }
         Debug.Log("[LLMStreamManager] Stream complete");
     }
 
@@ -79,34 +91,48 @@ public class LLMStreamManager : MonoBehaviour
     /// </summary>
     private IEnumerator StreamRequest(string prompt)
     {
-        // Create request body
+        // Create request body with consistent stop tokens
         LLMStreamRequest requestData = new LLMStreamRequest
         {
             prompt = prompt,
             temperature = temperature,
             n_predict = maxTokens,
             stream = true,
-            stop = new string[] { "User:", "\n\n\n" }
+            stop = new string[] { "User:", "\n\n" }
         };
 
         string requestBody = JsonUtility.ToJson(requestData);
 
         using (UnityWebRequest request = new UnityWebRequest(streamEndpoint, "POST"))
         {
+            // Track active request for cancellation
+            activeRequest = request;
+
             byte[] bodyRaw = Encoding.UTF8.GetBytes(requestBody);
             request.uploadHandler = new UploadHandlerRaw(bodyRaw);
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = (int)requestTimeout;
 
             // Send request
             var operation = request.SendWebRequest();
 
             StringBuilder fullResponse = new StringBuilder();
             int lastProcessedLength = 0;
+            float startTime = Time.time;
 
-            // Process streaming response
+            // Process streaming response with timeout check
             while (!operation.isDone)
             {
+                // Check for timeout
+                if (Time.time - startTime > requestTimeout)
+                {
+                    Debug.LogError("[LLMStreamManager] Request timed out");
+                    request.Abort();
+                    OnStreamError("Request timed out");
+                    yield break;
+                }
+
                 // Check for new data
                 string currentData = request.downloadHandler.text;
                 if (currentData.Length > lastProcessedLength)
@@ -114,12 +140,15 @@ public class LLMStreamManager : MonoBehaviour
                     string newChunk = currentData.Substring(lastProcessedLength);
                     lastProcessedLength = currentData.Length;
 
-                    // Process the chunk
+                    // Process the chunk (handles multiple SSE lines)
                     yield return StartCoroutine(ProcessStreamChunk(newChunk, fullResponse));
                 }
 
                 yield return new WaitForSeconds(chunkDelay);
             }
+
+            // Clear active request reference
+            activeRequest = null;
 
             // Handle completion
             if (request.result == UnityWebRequest.Result.Success)
@@ -194,39 +223,78 @@ public class LLMStreamManager : MonoBehaviour
 
     /// <summary>
     /// Parses a stream chunk from SSE format.
+    /// Handles multi-line SSE data and various LLM API formats.
     /// </summary>
     private string ParseStreamChunk(string chunk)
     {
-        // Handle different LLM API formats
+        if (string.IsNullOrEmpty(chunk))
+            return "";
 
-        // llama.cpp format: data: {"content": "text"}
-        if (chunk.StartsWith("data:"))
+        StringBuilder result = new StringBuilder();
+
+        // Split by newlines to handle multiple SSE events in one chunk
+        string[] lines = chunk.Split(new[] { "\r\n", "\r", "\n" }, System.StringSplitOptions.None);
+
+        foreach (string line in lines)
         {
+            string trimmedLine = line.Trim();
+
+            // Skip empty lines and SSE comments/heartbeats
+            if (string.IsNullOrEmpty(trimmedLine) || trimmedLine.StartsWith(":"))
+                continue;
+
+            // Skip event type declarations
+            if (trimmedLine.StartsWith("event:"))
+                continue;
+
+            // Handle data lines (SSE format)
+            if (trimmedLine.StartsWith("data:"))
+            {
+                string jsonPart = trimmedLine.Substring(5).Trim();
+
+                // Check for stream end marker
+                if (jsonPart == "[DONE]")
+                    continue;
+
+                try
+                {
+                    LLMStreamResponse response = JsonUtility.FromJson<LLMStreamResponse>(jsonPart);
+                    if (response != null && !string.IsNullOrEmpty(response.content))
+                    {
+                        result.Append(response.content);
+                    }
+                }
+                catch
+                {
+                    // If not valid JSON, append raw content (minus data: prefix)
+                    if (!string.IsNullOrEmpty(jsonPart))
+                    {
+                        result.Append(jsonPart);
+                    }
+                }
+                continue;
+            }
+
+            // Try parsing as direct JSON (non-SSE format)
             try
             {
-                string jsonPart = chunk.Substring(5).Trim();
-                if (jsonPart == "[DONE]") return "";
-
-                LLMStreamResponse response = JsonUtility.FromJson<LLMStreamResponse>(jsonPart);
-                return response.content ?? "";
+                LLMStreamResponse response = JsonUtility.FromJson<LLMStreamResponse>(trimmedLine);
+                if (response != null && !string.IsNullOrEmpty(response.content))
+                {
+                    result.Append(response.content);
+                }
             }
             catch
             {
-                return chunk.Substring(5).Trim();
+                // Not JSON, could be raw content - only append if meaningful
+                if (!trimmedLine.StartsWith("{") && !trimmedLine.StartsWith("["))
+                {
+                    result.Append(trimmedLine);
+                }
             }
         }
 
-        // Direct content format
-        try
-        {
-            LLMStreamResponse response = JsonUtility.FromJson<LLMStreamResponse>(chunk);
-            return response.content ?? "";
-        }
-        catch
-        {
-            // Return raw chunk if not JSON
-            return chunk;
-        }
+        return result.ToString();
     }
 
     /// <summary>
@@ -272,16 +340,34 @@ public class LLMStreamManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Cancels the current stream.
+    /// Internal cancel method (called within lock).
     /// </summary>
-    public void CancelStream()
+    private void CancelStreamInternal()
     {
         if (currentStreamCoroutine != null)
         {
             StopCoroutine(currentStreamCoroutine);
             currentStreamCoroutine = null;
         }
+
+        if (activeRequest != null)
+        {
+            activeRequest.Abort();
+            activeRequest = null;
+        }
+
         isStreaming = false;
+    }
+
+    /// <summary>
+    /// Cancels the current stream (public API).
+    /// </summary>
+    public void CancelStream()
+    {
+        lock (streamLock)
+        {
+            CancelStreamInternal();
+        }
         Debug.Log("[LLMStreamManager] Stream cancelled");
     }
 
@@ -309,5 +395,15 @@ public class LLMStreamManager : MonoBehaviour
     {
         public string content;
         public bool stop;
+    }
+
+    private void OnDestroy()
+    {
+        // Cancel any active stream and clear singleton reference
+        CancelStream();
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 }
