@@ -218,7 +218,7 @@ public class AudioManager : MonoBehaviour
 
     /// <summary>
     /// Streams a whisper based on LLM chunk (for real-time feedback).
-    /// Called by VoiceSynth or LLMStreamManager.
+    /// Called by LLMStreamManager.
     /// </summary>
     /// <param name="chunk">Text chunk from LLM response</param>
     public void StreamWhisper(string chunk)
@@ -236,11 +236,7 @@ public class AudioManager : MonoBehaviour
             }
         }
 
-        // Integrate with VoiceSynth if available
-        if (VoiceSynth.Instance != null)
-        {
-            VoiceSynth.Instance.Speak(chunk);
-        }
+        // TODO(v2): Integrate TTS when VoiceSynth is implemented
     }
 
     /// <summary>
