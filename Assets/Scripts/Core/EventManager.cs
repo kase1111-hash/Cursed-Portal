@@ -235,7 +235,7 @@ public class EventManager : SingletonBase<EventManager>
     {
         if (CameraShake.Instance != null)
         {
-            CameraShake.Instance.AddTrauma(intensity);
+            CameraShake.Instance.Shake(intensity, duration);
         }
     }
 

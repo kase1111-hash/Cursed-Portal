@@ -234,7 +234,8 @@ public class AudioManager : SingletonBase<AudioManager>
 
     private System.Collections.IEnumerator FadeOutCoroutine(float duration)
     {
-        float startVolume = whisperSource.volume;
+        float startWhisperVolume = whisperSource != null ? whisperSource.volume : 0f;
+        float startAmbientVolume = ambientSource != null ? ambientSource.volume : 0f;
         float elapsed = 0f;
 
         while (elapsed < duration)
@@ -243,9 +244,9 @@ public class AudioManager : SingletonBase<AudioManager>
             float t = elapsed / duration;
 
             if (whisperSource != null)
-                whisperSource.volume = Mathf.Lerp(startVolume, 0f, t);
+                whisperSource.volume = Mathf.Lerp(startWhisperVolume, 0f, t);
             if (ambientSource != null)
-                ambientSource.volume = Mathf.Lerp(ambientSource.volume, 0f, t);
+                ambientSource.volume = Mathf.Lerp(startAmbientVolume, 0f, t);
 
             yield return null;
         }

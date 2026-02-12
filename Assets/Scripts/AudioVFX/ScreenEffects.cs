@@ -123,6 +123,13 @@ public class ScreenEffects : SceneSingletonBase<ScreenEffects>
     /// </summary>
     public void FadeTo(Color color, float duration, System.Action onComplete = null)
     {
+        if (fadeImage == null)
+        {
+            Debug.LogWarning("[ScreenEffects] fadeImage not assigned!");
+            onComplete?.Invoke();
+            return;
+        }
+
         if (fadeCoroutine != null)
         {
             StopCoroutine(fadeCoroutine);
