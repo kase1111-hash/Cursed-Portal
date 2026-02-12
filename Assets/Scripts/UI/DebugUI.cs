@@ -8,9 +8,11 @@ using TMPro;
 /// <summary>
 /// Debug UI overlay showing spook level, active spirit, emotion, and fog density.
 /// Also provides a slider for manually adjusting spook level.
+/// Stripped in release builds to avoid exposing debug controls.
 /// </summary>
 public class DebugUI : MonoBehaviour
 {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     [Header("UI Components")]
     [SerializeField] private GameObject debugPanel;
     [SerializeField] private TMP_Text debugText;
@@ -214,4 +216,5 @@ public class DebugUI : MonoBehaviour
     {
         return isVisible;
     }
+#endif
 }
