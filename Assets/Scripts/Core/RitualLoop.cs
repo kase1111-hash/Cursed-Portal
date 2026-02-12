@@ -85,8 +85,10 @@ public class RitualLoop : SingletonBase<RitualLoop>
     /// </summary>
     private void UpdateSmoothTransitions()
     {
-        // Don't override fog during portal transitions
+        // Don't override fog during portal transitions or finale
         if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
+            return;
+        if (FinaleManager.Instance != null && FinaleManager.Instance.IsFinaleInProgress())
             return;
 
         // Smooth fog transition
