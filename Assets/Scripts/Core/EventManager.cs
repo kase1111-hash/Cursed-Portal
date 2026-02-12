@@ -220,9 +220,10 @@ public class EventManager : SingletonBase<EventManager>
     /// </summary>
     private void TriggerCameraShake(float intensity, float duration)
     {
-        // Camera shake implementation
-        // Can be expanded with Cinemachine impulse or custom shake
-        Debug.Log($"[EventManager] Camera shake: intensity={intensity}, duration={duration}");
+        if (CameraShake.Instance != null)
+        {
+            CameraShake.Instance.AddTrauma(intensity);
+        }
     }
 
     /// <summary>

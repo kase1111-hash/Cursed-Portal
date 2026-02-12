@@ -14,7 +14,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 {
 
     [Header("LLM Configuration")]
-    [SerializeField] private string streamEndpoint = "http://localhost:8080/completion";
+    [SerializeField] private string streamEndpoint = "http://localhost:11434/api/generate";
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
     [SerializeField] private float requestTimeout = 60f; // Timeout in seconds
@@ -75,17 +75,31 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     /// </summary>
     private IEnumerator StreamRequest(string prompt)
     {
-        // Create request body with consistent stop tokens
-        LLMStreamRequest requestData = new LLMStreamRequest
-        {
-            prompt = prompt,
-            temperature = temperature,
-            n_predict = maxTokens,
-            stream = true,
-            stop = new string[] { "User:", "\n\n" }
-        };
+        // Build request body based on active backend
+        string requestBody;
+        bool useOllama = LLMManager.Instance != null
+            && LLMManager.Instance.Backend == LLMManager.LLMBackend.Ollama;
 
-        string requestBody = JsonUtility.ToJson(requestData);
+        if (useOllama)
+        {
+            requestBody = JsonUtility.ToJson(new OllamaStreamRequest
+            {
+                model = LLMManager.Instance.OllamaModel,
+                prompt = prompt,
+                stream = true
+            });
+        }
+        else
+        {
+            requestBody = JsonUtility.ToJson(new LLMStreamRequest
+            {
+                prompt = prompt,
+                temperature = temperature,
+                n_predict = maxTokens,
+                stream = true,
+                stop = new string[] { "User:", "\n\n" }
+            });
+        }
 
         using (UnityWebRequest request = new UnityWebRequest(streamEndpoint, "POST"))
         {
@@ -259,9 +273,18 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 continue;
             }
 
-            // Try parsing as direct JSON (non-SSE format)
+            // Try parsing as direct JSON (non-SSE format — Ollama or llama.cpp)
             try
             {
+                // Try Ollama format first (uses "response" field)
+                OllamaStreamResponse ollamaResp = JsonUtility.FromJson<OllamaStreamResponse>(trimmedLine);
+                if (ollamaResp != null && !string.IsNullOrEmpty(ollamaResp.response))
+                {
+                    result.Append(ollamaResp.response);
+                    continue;
+                }
+
+                // Try llama.cpp format (uses "content" field)
                 LLMStreamResponse response = JsonUtility.FromJson<LLMStreamResponse>(trimmedLine);
                 if (response != null && !string.IsNullOrEmpty(response.content))
                 {
@@ -364,6 +387,8 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     }
 
     // Request/Response structures
+
+    // llama.cpp format
     [System.Serializable]
     private class LLMStreamRequest
     {
@@ -374,11 +399,28 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
         public string[] stop;
     }
 
+    // Ollama format
+    [System.Serializable]
+    private class OllamaStreamRequest
+    {
+        public string model;
+        public string prompt;
+        public bool stream;
+    }
+
     [System.Serializable]
     private class LLMStreamResponse
     {
         public string content;
         public bool stop;
+    }
+
+    // Ollama streams JSON lines with "response" field
+    [System.Serializable]
+    private class OllamaStreamResponse
+    {
+        public string response;
+        public bool done;
     }
 
     protected override void OnDestroy()
