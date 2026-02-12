@@ -204,6 +204,15 @@ public class VFXManager : SingletonBase<VFXManager>
     }
 
     /// <summary>
+    /// Gets the target fog density for a given spook level.
+    /// Used by RitualLoop to stay in sync with Inspector values.
+    /// </summary>
+    public float GetTargetFogDensity(int level)
+    {
+        return baseFogDensity + (level * fogDensityPerLevel);
+    }
+
+    /// <summary>
     /// Resets all VFX to baseline state.
     /// </summary>
     public void ResetVFX()

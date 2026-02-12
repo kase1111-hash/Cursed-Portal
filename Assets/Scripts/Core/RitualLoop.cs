@@ -56,8 +56,16 @@ public class RitualLoop : SingletonBase<RitualLoop>
     {
         int level = EventManager.Instance?.SpookLevel ?? 0;
 
-        // Calculate target values based on level
-        targetFogDensity = 0.01f + (level * 0.04f);
+        // Read fog target from VFXManager to stay in sync with Inspector values
+        if (VFXManager.Instance != null)
+        {
+            targetFogDensity = VFXManager.Instance.GetTargetFogDensity(level);
+        }
+        else
+        {
+            targetFogDensity = 0.01f + (level * 0.04f);
+        }
+
         targetAudioVolume = 0.3f + (level * 0.1f);
 
         // Apply emotion modifiers
@@ -77,6 +85,10 @@ public class RitualLoop : SingletonBase<RitualLoop>
     /// </summary>
     private void UpdateSmoothTransitions()
     {
+        // Don't override fog during portal transitions
+        if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
+            return;
+
         // Smooth fog transition
         if (VFXManager.Instance != null)
         {

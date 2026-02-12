@@ -138,10 +138,18 @@ public class EventManager : SingletonBase<EventManager>
         switch (level)
         {
             case 0:
-                // Baseline: faint whispers, minimal fog
+                // Baseline — handled by continuous managers above
                 break;
             case 1:
-                // Orb glow, slight vignette
+                // Orb glow, slight vignette pulse
+                if (VFXManager.Instance != null)
+                {
+                    VFXManager.Instance.EnableOrbGlow();
+                }
+                if (PostFXController.Instance != null)
+                {
+                    PostFXController.Instance.PulseVignette(0.3f, 1f);
+                }
                 break;
             case 2:
                 // Fog thickens, camera shake
@@ -156,9 +164,14 @@ public class EventManager : SingletonBase<EventManager>
                 break;
             case 4:
                 // Mirror glitch, lens distortion
+                if (PostFXController.Instance != null)
+                {
+                    PostFXController.Instance.TriggerGlitch(0.5f);
+                }
+                TriggerCameraShake(0.2f, 1f);
                 break;
             case 5:
-                // DIMENSION BREACH - trigger portal sequence
+                // DIMENSION BREACH — trigger portal sequence
                 Debug.Log("[EventManager] DIMENSION BREACH! Triggering portal...");
                 OnDimensionBreach?.Invoke();
                 if (PortalSequence.Instance != null)
@@ -222,7 +235,7 @@ public class EventManager : SingletonBase<EventManager>
     {
         if (CameraShake.Instance != null)
         {
-            CameraShake.Instance.AddTrauma(intensity);
+            CameraShake.Instance.Shake(intensity, duration);
         }
     }
 
