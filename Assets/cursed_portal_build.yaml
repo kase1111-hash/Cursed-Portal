@@ -59,10 +59,15 @@ prefabs:
 modules:
   core:
     - "Assets/Scripts/Core/IInteractable.cs"
+    - "Assets/Scripts/Core/SingletonBase.cs"
+    - "Assets/Scripts/Core/GameManager.cs"
     - "Assets/Scripts/Core/InteractionManager.cs"
     - "Assets/Scripts/Core/EventManager.cs"
     - "Assets/Scripts/Core/RitualLoop.cs"
     - "Assets/Scripts/Core/PortalSequence.cs"
+    - "Assets/Scripts/Core/FinaleManager.cs"
+    - "Assets/Scripts/Core/PlayerSpawnMarker.cs"
+    - "Assets/Scripts/Core/SpookTriggerZone.cs"
   ai:
     - "Assets/Scripts/AI/LLMManager.cs"
     - "Assets/Scripts/AI/LLMStreamManager.cs"
@@ -75,17 +80,36 @@ modules:
     - "Assets/Scripts/AudioVFX/PostFXController.cs"
     - "Assets/Scripts/AudioVFX/PortalDistort.cs"
     - "Assets/Scripts/AudioVFX/DimensionalLight.cs"
+    - "Assets/Scripts/AudioVFX/CameraShake.cs"
+    - "Assets/Scripts/AudioVFX/HeartbeatEffect.cs"
+    - "Assets/Scripts/AudioVFX/CandleFlicker.cs"
+    - "Assets/Scripts/AudioVFX/AmbienceController.cs"
+    - "Assets/Scripts/AudioVFX/ScreenEffects.cs"
+    - "Assets/Scripts/AudioVFX/OrbitalMotion.cs"
   ui:
     - "Assets/Scripts/UI/UIChat.cs"
     - "Assets/Scripts/UI/UIEpilogue.cs"
     - "Assets/Scripts/UI/DebugUI.cs"
+    - "Assets/Scripts/UI/SpookLevelDebugUI.cs"
   props:
     - "Assets/Scripts/Props/InteractableSpirit.cs"
-  editor:  # Deferred to Phase 7
-    - "Assets/Scripts/_Deferred/Editor/PrefabBuilder.cs"
-    - "Assets/Scripts/_Deferred/Editor/SceneWiringTool.cs"
-    - "Assets/Scripts/_Deferred/Editor/SceneSetup.cs"
-    - "Assets/Scripts/_Deferred/Editor/OtherDimensionSetup.cs"
+    - "Assets/Scripts/Props/PropHighlight.cs"
+    - "Assets/Scripts/Props/PropAnimator.cs"
+    - "Assets/Scripts/Props/PropAmbientSound.cs"
+    - "Assets/Scripts/Props/CrystalBallProp.cs"
+    - "Assets/Scripts/Props/MirrorProp.cs"
+    - "Assets/Scripts/Props/BoothProp.cs"
+    - "Assets/Scripts/Props/TableProp.cs"
+  player:
+    - "Assets/Scripts/Player/FirstPersonController.cs"
+    - "Assets/Scripts/Player/CameraController.cs"
+    - "Assets/Scripts/Player/CursorManager.cs"
+    - "Assets/Scripts/Player/FootstepSystem.cs"
+  editor:
+    - "Assets/Scripts/Editor/PrefabBuilder.cs"
+    - "Assets/Scripts/Editor/SceneWiringTool.cs"
+    - "Assets/Scripts/Editor/SceneSetup.cs"
+    - "Assets/Scripts/Editor/OtherDimensionSetup.cs"
 
 # Build targets
 build_targets:
@@ -133,11 +157,14 @@ validation:
       type: "performance"
       max_seconds: 5
 
-# LLM configuration
+# LLM configuration (default backend; switchable in LLMManager Inspector)
 llm:
-  provider: "llama.cpp"
-  endpoint: "http://localhost:8080"
-  model: "llama3.2-3b"
+  provider: "Ollama"
+  endpoint: "http://localhost:11434/api/generate"
+  model: "llama3.2:3b"
+  alternative:
+    provider: "llama.cpp"
+    endpoint: "http://localhost:8080/completion"
   settings:
     temperature: 0.8
     max_tokens: 256

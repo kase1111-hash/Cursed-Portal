@@ -51,7 +51,7 @@ Security concerns relevant to this project include:
 ## Security Best Practices for Users
 
 ### LLM Configuration
-- Run Ollama on localhost only (default: `http://localhost:8080`)
+- Run Ollama on localhost only (default: `http://localhost:11434`)
 - Do not expose the LLM endpoint to the network
 - Use trusted model files from verified sources
 

@@ -1,6 +1,6 @@
 🔮 Cursed Portal – Poe Parlor: AI-Generated Complete Unity Project
-Build Verified: Jan 07, 2026 | Target: Unity 2023.2 LTS (URP) | Est. Time: 4-8 hrs | Local LLM: llama.cpp (via LLMUnity)
-This is the fully self-contained, copy-paste-ready project generated sequentially per spec (M1→M25). All code compiles (tested conceptually; single-file-per-class, singleton patterns, no cycles). Prefabs auto-generate. Scenes wire automatically. Spook ramps, portal transitions, epilogues work out-of-box.
+Target: Unity 2023.2 LTS (URP) | Local LLM: Ollama (default) or llama.cpp
+This is the design specification for the project, generated sequentially per spec (M1-M25). Note: The code samples below reflect the original specification and may differ from the current codebase (e.g., managers now use `SingletonBase<T>` instead of copy-paste singletons, default LLM backend is Ollama on port 11434, and VoiceSynth.cs has been removed). Always refer to the actual source files for current implementation.
 🚀 Quickstart Checklist
 
 Project Creation:
@@ -8,9 +8,8 @@ Unity Hub → New Project → 3D (URP) → Name: CursedPortal → Create.
 Unity Editor: Window > Package Manager:PackageSourceTextMeshProUnity Registry → Import TMP EssentialsCinemachineUnity Registry → InstallUniversal RPAlready installedLLMUnity+ → Add from Git: https://github.com/undreamai/LLMUnity.git
 
 LLM Backend Setup (Local, Free):
-Download/run llama.cpp server (e.g., Llama 3.2 3B GGUF).
-Start server: ./server -m llama3.2-3b.gguf --host 0.0.0.0 --port 8080
-In Unity: Add LLM component (llama.cpp provider, base URL http://localhost:8080)
+Option A (default): Install Ollama (https://ollama.com), then `ollama pull llama3.2:3b` and `ollama serve`. Runs on localhost:11434.
+Option B: Download/run llama.cpp server (e.g., Llama 3.2 3B GGUF). Start server: ./server -m llama3.2-3b.gguf --host 0.0.0.0 --port 8080. Set LLMManager backend to LlamaCpp in the Inspector.
 
 Poe Texts (Public Domain):
 Create folder Assets/StreamingAssets/PoeStories/
@@ -28,7 +27,7 @@ Fog Particles: URP Lit Particle + Hemisphere Shape (tut).
 Play Test: Hit Play → WASD/Mouse → E interact → Chat ESC → Spook ramps → Breach @ lvl5 → Epilogue.
 Build: File > Build Settings > Add scenes → Build (PC/WebGL).
 
-Debug Keys: F1 Reset | F2 Random | F3 Toggle UI | Slider for spook.
+Debug Keys: F1 Debug Panel | F2 Random Spirit | F3 Toggle Chat | F4 Skip Scene | F5 Reset Spook | F12 Spook Overlay.
 📁 Complete Folder Tree & Files
 textAssets/
 ├── Scenes/

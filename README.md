@@ -14,9 +14,10 @@ An LLM-powered gothic horror game built on Unity. Chat with the spirits of Edgar
 
 1. Clone the repo and open in Unity Hub
 2. Start Ollama (`ollama serve` if not already running)
-3. Open `Assets/Scenes/PoeParlor.unity`
-4. Use **CursedPortal > Setup Main Scene** menu to auto-generate scene objects
-5. Press Play
+3. Download the Poe story texts from Project Gutenberg and place them in `Assets/StreamingAssets/PoeStories/` (the included files are placeholders — see links inside each `.txt` file)
+4. Create a new scene `Assets/Scenes/CursedPortal.unity`
+5. Use **CursedPortal > Setup Main Scene** menu to auto-generate the parlor, props, managers, and player rig
+6. Press Play
 
 ### Editor Tools
 
@@ -72,6 +73,17 @@ Player enters parlor
 
 Spirit memories persist across sessions in `Application.persistentDataPath/SpiritMemory/`.
 
+## Current Status
+
+The codebase contains 46 C# scripts with the core architecture implemented. To reach a playable state:
+
+- **Scene files** need to be generated using the editor tools (CursedPortal > Setup Main Scene)
+- **Poe story texts** in `StreamingAssets/PoeStories/` are placeholders — download the full texts from Project Gutenberg (links are in each file)
+- **Prefabs** need to be generated via CursedPortal > Build Prefabs
+- **Audio/visual assets** (ambient audio, textures, 3D models) are not included — use free assets from Freesound.org, PolyHaven, or the Unity Asset Store
+
+See `REBOOT_PLAN.md` for the full step-by-step guide to assembling a playable prototype.
+
 ## Project Structure
 
 ```
@@ -86,9 +98,11 @@ Assets/
     Core/         GameManager, EventManager, RitualLoop,
                   PortalSequence, FinaleManager, InteractionManager,
                   IInteractable, SingletonBase, PlayerSpawnMarker,
-                  CursorManager
-    Player/       FirstPersonController, CameraController, FootstepSystem
-    Props/        InteractableSpirit, PropHighlight, CrystalBallProp,
+                  SpookTriggerZone
+    Player/       FirstPersonController, CameraController,
+                  FootstepSystem, CursorManager
+    Props/        InteractableSpirit, PropHighlight, PropAnimator,
+                  PropAmbientSound, CrystalBallProp,
                   MirrorProp, BoothProp, TableProp
     UI/           UIChat, UIEpilogue, DebugUI, SpookLevelDebugUI
     Editor/       SceneSetup, SceneWiringTool, PrefabBuilder,
@@ -96,7 +110,7 @@ Assets/
   StreamingAssets/
     SpiritProfiles/poe_spirits.json
     PoeStories/   raven.txt, tell-tale-heart.txt, usher.txt
-  Scenes/         PoeParlor, OtherDimension
+  Scenes/         CursedPortal, OtherDimension  (generated via editor tools)
 ```
 
 ## License

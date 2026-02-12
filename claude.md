@@ -41,8 +41,8 @@ Assets/
 │   ├── UI/          # UIChat, DebugUI, UIEpilogue
 │   ├── AudioVFX/    # AudioManager, VFXManager, PostFXController
 │   ├── Props/       # CrystalBallProp, MirrorProp, etc.
-│   ├── Player/      # FirstPersonController, CameraController
-│   └── Editor/      # PrefabBuilder, SceneWiringTool
+│   ├── Player/      # FirstPersonController, CameraController, CursorManager, FootstepSystem
+│   └── Editor/      # PrefabBuilder, SceneWiringTool, SceneSetup, OtherDimensionSetup
 ├── StreamingAssets/
 │   ├── PoeStories/      # raven.txt, usher.txt, tell-tale-heart.txt
 │   └── SpiritProfiles/  # poe_spirits.json
@@ -52,17 +52,20 @@ Assets/
 ## Quick Reference
 
 ### Scenes
-- **CursedPortal.unity** - Main game scene with parlor and interactable props
-- **OtherDimension.unity** - Finale scene with epilogue narration
+- **CursedPortal.unity** - Main game scene with parlor and interactable props (generate via CursedPortal > Setup Main Scene)
+- **OtherDimension.unity** - Finale scene with epilogue narration (generate via CursedPortal > Create OtherDimension Scene)
+
+Note: Scene files are not checked into the repo. Use the editor tools above to generate them.
 
 ### Configuration Files
 - `Assets/cursed_portal_build.yaml` - Build manifest, dependencies, LLM config
 - `Assets/StreamingAssets/SpiritProfiles/poe_spirits.json` - Spirit definitions and prompts
 
 ### LLM Configuration
-- **Provider:** llama.cpp via Ollama
-- **Endpoint:** localhost:8080
-- **Model:** llama3.2-3b (recommended)
+- **Default Provider:** Ollama
+- **Default Endpoint:** `http://localhost:11434/api/generate`
+- **Model:** `llama3.2:3b` (recommended)
+- **Alternative Provider:** llama.cpp on `http://localhost:8080/completion`
 - **Streaming:** Enabled by default
 - **Temperature:** 0.8
 - **Max tokens:** 256
@@ -83,33 +86,44 @@ unity -batchmode -nographics -projectPath . \
 
 ### Run LLM Server
 ```bash
+# Option A: Ollama (default backend)
+ollama serve                    # Starts on localhost:11434
+ollama pull llama3.2:3b         # Download model (first time only)
+
+# Option B: llama.cpp (alternative backend)
 ./server -m llama3.2-3b.gguf --host 0.0.0.0 --port 8080
+# Then set LLMManager backend to LlamaCpp in the Inspector
 ```
 
-### Debug Keys (In-Game)
+### Debug Keys (Editor / Development Build)
 | Key | Function |
 |-----|----------|
 | Esc | Toggle chat UI |
 | E | Interact with object |
-| F1 | Reset spook level to 0 |
+| F1 | Toggle debug panel |
 | F2 | Summon random spirit |
-| F3 | Skip to OtherDimension |
+| F3 | Toggle chat UI |
+| F4 | Skip to OtherDimension |
+| F5 | Reset spook level to 0 |
+| F12 | Toggle spook level debug overlay |
 
 ## Code Conventions
 
 ### Manager Class Template
+All singleton managers inherit from `SingletonBase<T>` (defined in `Assets/Scripts/Core/SingletonBase.cs`):
 ```csharp
-public class NewManager : MonoBehaviour {
-    public static NewManager Instance { get; private set; }
+// For managers that persist across scenes:
+public class NewManager : SingletonBase<NewManager> {
+    protected override void Awake() {
+        base.Awake();
+        // Custom initialization here
+    }
+}
 
-    private void Awake() {
-        if (Instance == null) {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        } else {
-            Destroy(gameObject);
-            return;
-        }
+// For managers scoped to a single scene:
+public class NewSceneManager : SceneSingletonBase<NewSceneManager> {
+    protected override void Awake() {
+        base.Awake();
     }
 }
 ```
@@ -144,9 +158,11 @@ public interface IInteractable {
 ### LLM Chat Flow
 1. UIChat.SendMessage() receives player input
 2. LLMManager.SummonSpirit() loads profile + story context + memory
-3. HTTP POST to llama.cpp endpoint
-4. EmotionParser analyzes response
-5. UIChat displays response, SpiritMemory persists exchange
+3. HTTP POST to Ollama endpoint (`localhost:11434/api/generate`) or llama.cpp (`localhost:8080/completion`)
+4. LLMStreamManager streams response chunks to UIChat
+5. EmotionParser analyzes each chunk for sentiment
+6. RitualLoop reacts to detected emotions, EventManager escalates spook level
+7. SpiritMemory persists the exchange
 
 ### Scene Transition
 When spook level reaches 5, EventManager triggers OnDimensionBreach event, which starts PortalSequence to transition to OtherDimension.unity.
@@ -186,7 +202,7 @@ When spook level reaches 5, EventManager triggers OnDimensionBreach event, which
 
 | Issue | Solution |
 |-------|----------|
-| LLM not responding | Check Ollama is running on localhost:8080 |
+| LLM not responding | Check Ollama is running on localhost:11434 (or llama.cpp on localhost:8080 if using that backend) |
 | Missing script references | Run CursedPortal > Wire Scene Objects |
 | Chat log overflow | Auto-truncates at 5000 chars |
 | WebGL LLM issues | Use external proxy or fallback to script simulation |

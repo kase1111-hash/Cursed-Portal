@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Advanced Systems (M11-M17)
 - **M11 - LLM Streaming**: Asynchronous response streaming with hallucination effects
-- **M12 - Voice Synthesis**: TTS pipeline for spirit voice output
+- **M12 - Voice Synthesis**: TTS pipeline for spirit voice output (deferred — VoiceSynth.cs removed, see REBOOT_PLAN.md)
 - **M13 - Portal Distortion Shader**: Emotion-reactive dimensional rift visuals
 - **M14 - Emotion Parser**: Sentiment analysis driving environmental responses
 - **M15 - Procedural Ambience**: Layered ambient audio composer
@@ -59,5 +59,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 - Unity 2023.2 LTS with Universal Render Pipeline
 - Local LLM integration via Ollama/llama.cpp
-- 22,178 lines of C# across 44 script files
+- ~11,200 lines of C# across 46 script files
 - Modular architecture with 25 independent modules
