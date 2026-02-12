@@ -235,4 +235,13 @@ public class CrystalBallProp : MonoBehaviour, IInteractable
             ambientSource.volume = 0.2f;
         }
     }
+
+    private void OnDestroy()
+    {
+        // Clean up material instance created via .material accessor
+        if (orbMaterial != null)
+        {
+            Object.Destroy(orbMaterial);
+        }
+    }
 }

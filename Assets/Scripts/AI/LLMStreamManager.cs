@@ -14,6 +14,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 {
 
     [Header("LLM Configuration")]
+    [Tooltip("Fallback endpoint if LLMManager is unavailable")]
     [SerializeField] private string streamEndpoint = "http://localhost:11434/api/generate";
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
@@ -105,7 +106,12 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
             });
         }
 
-        using (UnityWebRequest request = new UnityWebRequest(streamEndpoint, "POST"))
+        // Use LLMManager endpoint if available, otherwise fall back to local field
+        string endpoint = LLMManager.Instance != null
+            ? LLMManager.Instance.Endpoint
+            : streamEndpoint;
+
+        using (UnityWebRequest request = new UnityWebRequest(endpoint, "POST"))
         {
             // Track active request for cancellation
             activeRequest = request;

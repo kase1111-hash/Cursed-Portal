@@ -54,8 +54,8 @@ public class InteractionManager : SceneSingletonBase<InteractionManager>
 
         if (Physics.Raycast(ray, out RaycastHit hit, interactionRange, interactableMask))
         {
-            // Try to get IInteractable from hit object
-            IInteractable interactable = hit.collider.GetComponent<IInteractable>();
+            // Try to get IInteractable from hit object or its parents (handles child colliders)
+            IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
             currentTarget = interactable;
         }
         else

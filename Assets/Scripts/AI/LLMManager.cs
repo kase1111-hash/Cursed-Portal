@@ -192,12 +192,16 @@ public class LLMManager : SingletonBase<LLMManager>
         // Load story text
         string storyText = LoadStoryText(profile.story);
 
-        // Load memory if available
+        // Load memory if available (truncated to last 3 exchanges to avoid context overflow)
         SpiritMemory memory = SpiritMemory.Load(ActiveSpirit);
         string memoryContext = "";
-        if (memory != null && memory.lastResponses != null && memory.lastResponses.Length > 0)
+        if (memory != null && memory.totalInteractions > 0)
         {
-            memoryContext = "\n\nPrevious encounters: " + string.Join(" ", memory.lastResponses);
+            string summary = memory.GetContextSummary(3);
+            if (!string.IsNullOrEmpty(summary))
+            {
+                memoryContext = "\n\nPrevious encounters: " + summary;
+            }
         }
 
         // Build full prompt
@@ -432,5 +436,10 @@ public class LLMManager : SingletonBase<LLMManager>
     /// Gets the configured Ollama model name.
     /// </summary>
     public string OllamaModel => ollamaModel;
+
+    /// <summary>
+    /// Gets the configured LLM endpoint URL.
+    /// </summary>
+    public string Endpoint => llmEndpoint;
 
 }
