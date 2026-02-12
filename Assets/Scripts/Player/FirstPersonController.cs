@@ -8,10 +8,8 @@ using UnityEngine;
 /// Handles WASD movement with smooth acceleration and deceleration.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
-public class FirstPersonController : MonoBehaviour
+public class FirstPersonController : SceneSingletonBase<FirstPersonController>
 {
-    public static FirstPersonController Instance { get; private set; }
-
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 4f;
     [SerializeField] private float sprintSpeed = 7f;
@@ -43,21 +41,14 @@ public class FirstPersonController : MonoBehaviour
     private float horizontalInput;
     private float verticalInput;
 
-    private void Awake()
+    protected override void Awake()
     {
-        // Singleton
-        if (Instance == null)
+        base.Awake();
+        if (Instance == this)
         {
-            Instance = this;
+            controller = GetComponent<CharacterController>();
+            cameraController = GetComponentInChildren<CameraController>();
         }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        controller = GetComponent<CharacterController>();
-        cameraController = GetComponentInChildren<CameraController>();
     }
 
     private void Start()

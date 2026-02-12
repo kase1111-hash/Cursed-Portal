@@ -7,10 +7,8 @@ using UnityEngine;
 /// Advanced camera shake system with multiple shake types.
 /// Integrates with EventManager for spook-level-based shaking.
 /// </summary>
-public class CameraShake : MonoBehaviour
+public class CameraShake : SceneSingletonBase<CameraShake>
 {
-    public static CameraShake Instance { get; private set; }
-
     [Header("Shake Settings")]
     [SerializeField] private float traumaDecay = 1.3f;
     [SerializeField] private float maxAngle = 10f;
@@ -28,19 +26,13 @@ public class CameraShake : MonoBehaviour
     private Vector3 originalPosition;
     private Quaternion originalRotation;
 
-    private void Awake()
+    protected override void Awake()
     {
-        if (Instance == null)
+        base.Awake();
+        if (Instance == this)
         {
-            Instance = this;
+            seed = Random.value * 1000f;
         }
-        else
-        {
-            Destroy(this);
-            return;
-        }
-
-        seed = Random.value * 1000f;
     }
 
     private void Start()
@@ -154,11 +146,12 @@ public class CameraShake : MonoBehaviour
         transform.localRotation = originalRotation;
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnSpookLevelChanged -= OnSpookLevelChanged;
         }
+        base.OnDestroy();
     }
 }

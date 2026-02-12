@@ -8,10 +8,8 @@ using UnityEngine.UI;
 /// Manages screen-wide visual effects like flashes, fades, and overlays.
 /// Used for dramatic moments and spook reactions.
 /// </summary>
-public class ScreenEffects : MonoBehaviour
+public class ScreenEffects : SceneSingletonBase<ScreenEffects>
 {
-    public static ScreenEffects Instance { get; private set; }
-
     [Header("UI References")]
     [SerializeField] private Image flashImage;
     [SerializeField] private Image fadeImage;
@@ -30,19 +28,6 @@ public class ScreenEffects : MonoBehaviour
     private Coroutine flashCoroutine;
     private Coroutine fadeCoroutine;
     private float currentVignetteAlpha = 0f;
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

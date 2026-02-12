@@ -9,12 +9,15 @@ using System.Collections;
 /// Central manager for LLM-based Poe spirit interactions.
 /// Handles spirit summoning, context building, and response processing.
 /// </summary>
-public class LLMManager : MonoBehaviour
+public class LLMManager : SingletonBase<LLMManager>
 {
-    public static LLMManager Instance { get; private set; }
+
+    public enum LLMBackend { LlamaCpp, Ollama }
 
     [Header("LLM Configuration")]
-    [SerializeField] private string llmEndpoint = "http://localhost:8080/completion";
+    [SerializeField] private LLMBackend backend = LLMBackend.Ollama;
+    [SerializeField] private string llmEndpoint = "http://localhost:11434/api/generate";
+    [SerializeField] private string ollamaModel = "llama3.2:3b";
     [SerializeField] private int maxContextLength = 4000;
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
@@ -46,21 +49,6 @@ public class LLMManager : MonoBehaviour
     // Cached story texts to avoid blocking I/O during gameplay
     private System.Collections.Generic.Dictionary<string, string> cachedStories =
         new System.Collections.Generic.Dictionary<string, string>();
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -262,14 +250,27 @@ public class LLMManager : MonoBehaviour
     {
         string fullPrompt = $"{systemPrompt}\n\nUser: {userMessage}\n\nSpirit:";
 
-        // Create request body with consistent stop tokens
-        string requestBody = JsonUtility.ToJson(new LLMRequest
+        // Build request body based on backend
+        string requestBody;
+        if (backend == LLMBackend.Ollama)
         {
-            prompt = fullPrompt,
-            temperature = temperature,
-            n_predict = maxTokens,
-            stop = new string[] { "User:", "\n\n" }
-        });
+            requestBody = JsonUtility.ToJson(new OllamaRequest
+            {
+                model = ollamaModel,
+                prompt = fullPrompt,
+                stream = false
+            });
+        }
+        else
+        {
+            requestBody = JsonUtility.ToJson(new LLMRequest
+            {
+                prompt = fullPrompt,
+                temperature = temperature,
+                n_predict = maxTokens,
+                stop = new string[] { "User:", "\n\n" }
+            });
+        }
 
         using (UnityEngine.Networking.UnityWebRequest request = new UnityEngine.Networking.UnityWebRequest(llmEndpoint, "POST"))
         {
@@ -388,6 +389,8 @@ public class LLMManager : MonoBehaviour
     }
 
     // Request/Response structures for JSON serialization
+
+    // llama.cpp format
     [System.Serializable]
     private class LLMRequest
     {
@@ -397,26 +400,37 @@ public class LLMManager : MonoBehaviour
         public string[] stop;
     }
 
+    // Ollama format
+    [System.Serializable]
+    private class OllamaRequest
+    {
+        public string model;
+        public string prompt;
+        public bool stream;
+    }
+
     [System.Serializable]
     private class LLMResponse
     {
         public string content;
     }
 
-    // Alternate response format for compatibility with different LLM backends
+    // Ollama and alternate response formats
     [System.Serializable]
     private class LLMResponseAlt
     {
         public string text;
-        public string response;
+        public string response; // Ollama uses "response" field
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference on destroy to prevent memory leaks
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
+    /// <summary>
+    /// Gets the configured backend type.
+    /// </summary>
+    public LLMBackend Backend => backend;
+
+    /// <summary>
+    /// Gets the configured Ollama model name.
+    /// </summary>
+    public string OllamaModel => ollamaModel;
+
 }

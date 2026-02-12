@@ -7,10 +7,8 @@ using UnityEngine;
 /// Controls the portal distortion shader properties based on emotion and spook level.
 /// Attach to objects with portal distortion material (mirror, crystal ball rim, etc).
 /// </summary>
-public class PortalDistort : MonoBehaviour
+public class PortalDistort : SceneSingletonBase<PortalDistort>
 {
-    public static PortalDistort Instance { get; private set; }
-
     [Header("Material Reference")]
     [SerializeField] private Material portalMaterial;
 
@@ -40,22 +38,6 @@ public class PortalDistort : MonoBehaviour
     private float currentDistortion;
     private float currentHueShift;
     private string currentEmotion = EmotionParser.NEUTRAL;
-
-    private void Awake()
-    {
-        // Singleton pattern (scene-specific, not persistent)
-        // When loading a new scene, transfer state from old instance before replacing
-        if (Instance != null && Instance != this)
-        {
-            // Transfer relevant state from previous instance
-            currentEmotion = Instance.currentEmotion;
-            targetDistortion = Instance.targetDistortion;
-            targetHueShift = Instance.targetHueShift;
-            currentDistortion = Instance.currentDistortion;
-            currentHueShift = Instance.currentHueShift;
-        }
-        Instance = this;
-    }
 
     private void Start()
     {
@@ -218,12 +200,4 @@ public class PortalDistort : MonoBehaviour
         currentEmotion = EmotionParser.NEUTRAL;
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference if this instance
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
 }

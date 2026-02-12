@@ -9,9 +9,8 @@ using UnityEngine.Rendering.Universal;
 /// Controls URP post-processing effects based on spook level.
 /// Manages vignette, color adjustments, chromatic aberration, and lens distortion.
 /// </summary>
-public class PostFXController : MonoBehaviour
+public class PostFXController : SingletonBase<PostFXController>
 {
-    public static PostFXController Instance { get; private set; }
 
     [Header("Volume Reference")]
     [SerializeField] private Volume volume;
@@ -43,21 +42,6 @@ public class PostFXController : MonoBehaviour
     // Initialization state
     private bool initialized = false;
     private int currentLevel = 0;
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -278,12 +262,4 @@ public class PostFXController : MonoBehaviour
         return currentLevel;
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference on destroy to prevent memory leaks
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
 }

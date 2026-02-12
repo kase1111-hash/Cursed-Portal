@@ -36,6 +36,8 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
     // Cached components
     private Renderer propRenderer;
     private Material originalMaterial;
+    private MaterialPropertyBlock propBlock;
+    private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
     private bool isHighlighted = false;
 
     // Cooldown to prevent spam
@@ -46,9 +48,9 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
     {
         // Cache renderer
         propRenderer = GetComponent<Renderer>();
+        propBlock = new MaterialPropertyBlock();
         if (propRenderer != null)
         {
-            // Use sharedMaterial to avoid creating a material instance copy (memory leak)
             originalMaterial = propRenderer.sharedMaterial;
         }
 
@@ -117,16 +119,12 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         Debug.Log($"[InteractableSpirit] Highlighting {gameObject.name}");
 
-        // Apply highlight material
-        if (propRenderer != null && highlightMaterial != null)
+        // Apply highlight via MaterialPropertyBlock (no material instance leak)
+        if (propRenderer != null)
         {
-            propRenderer.material = highlightMaterial;
-        }
-        else if (propRenderer != null)
-        {
-            // Fallback: Add emission to current material
-            propRenderer.material.EnableKeyword("_EMISSION");
-            propRenderer.material.SetColor("_EmissionColor", highlightColor * 0.5f);
+            propRenderer.GetPropertyBlock(propBlock);
+            propBlock.SetColor(EmissionColor, highlightColor * 0.5f);
+            propRenderer.SetPropertyBlock(propBlock);
         }
 
         // Enable glow light
@@ -146,15 +144,12 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         Debug.Log($"[InteractableSpirit] Unhighlighting {gameObject.name}");
 
-        // Restore original material
-        if (propRenderer != null && originalMaterial != null)
+        // Clear highlight via MaterialPropertyBlock
+        if (propRenderer != null)
         {
-            propRenderer.material = originalMaterial;
-        }
-        else if (propRenderer != null)
-        {
-            // Fallback: Remove emission
-            propRenderer.material.SetColor("_EmissionColor", Color.black);
+            propRenderer.GetPropertyBlock(propBlock);
+            propBlock.SetColor(EmissionColor, Color.black);
+            propRenderer.SetPropertyBlock(propBlock);
         }
 
         // Disable glow light

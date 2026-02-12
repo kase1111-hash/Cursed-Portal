@@ -8,10 +8,8 @@ using System;
 /// Manages the spook escalation system and coordinates horror effects.
 /// Central hub for triggering audio, visual, and atmospheric changes.
 /// </summary>
-public class EventManager : MonoBehaviour
+public class EventManager : SingletonBase<EventManager>
 {
-    public static EventManager Instance { get; private set; }
-
     [Header("Spook Settings")]
     [SerializeField] private int maxSpookLevel = 5;
 
@@ -26,19 +24,12 @@ public class EventManager : MonoBehaviour
     // Debounce tracking - each level triggers effects only once
     private bool[] levelTriggered;
 
-    private void Awake()
+    protected override void Awake()
     {
-        // Singleton pattern with persistence
-        if (Instance == null)
+        base.Awake();
+        if (Instance == this)
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
             levelTriggered = new bool[maxSpookLevel + 1];
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
         }
     }
 
@@ -229,9 +220,10 @@ public class EventManager : MonoBehaviour
     /// </summary>
     private void TriggerCameraShake(float intensity, float duration)
     {
-        // Camera shake implementation
-        // Can be expanded with Cinemachine impulse or custom shake
-        Debug.Log($"[EventManager] Camera shake: intensity={intensity}, duration={duration}");
+        if (CameraShake.Instance != null)
+        {
+            CameraShake.Instance.AddTrauma(intensity);
+        }
     }
 
     /// <summary>
@@ -242,12 +234,4 @@ public class EventManager : MonoBehaviour
         return (float)SpookLevel / maxSpookLevel;
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference on destroy to prevent memory leaks
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
 }

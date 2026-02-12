@@ -7,9 +7,8 @@ using UnityEngine;
 /// Manages visual effects including fog, particles, and ghost manifestations.
 /// Coordinates with EventManager for spook-level-based VFX changes.
 /// </summary>
-public class VFXManager : MonoBehaviour
+public class VFXManager : SingletonBase<VFXManager>
 {
-    public static VFXManager Instance { get; private set; }
 
     [Header("Particle Systems")]
     [SerializeField] private ParticleSystem fogParticles;
@@ -35,21 +34,6 @@ public class VFXManager : MonoBehaviour
     // Track fog burst coroutine to prevent stacking
     private Coroutine activeFogBurstCoroutine;
     private float baseDensityBeforeBurst;
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -256,14 +240,14 @@ public class VFXManager : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
-        // Clear singleton reference and reset fog on destroy
+        // Reset fog on destroy
         if (Instance == this)
         {
-            Instance = null;
             RenderSettings.fogDensity = baseFogDensity;
             RenderSettings.fogColor = baseFogColor;
         }
+        base.OnDestroy();
     }
 }

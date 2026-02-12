@@ -7,10 +7,8 @@ using UnityEngine;
 /// Plays footstep sounds based on player movement.
 /// Adds to immersion and can intensify with spook level.
 /// </summary>
-public class FootstepSystem : MonoBehaviour
+public class FootstepSystem : SceneSingletonBase<FootstepSystem>
 {
-    public static FootstepSystem Instance { get; private set; }
-
     [Header("Audio")]
     [SerializeField] private AudioSource footstepSource;
     [SerializeField] private AudioClip[] footstepClips;
@@ -36,14 +34,6 @@ public class FootstepSystem : MonoBehaviour
     private int currentSpookLevel = 0;
     private bool isMoving = false;
     private bool isRunning = false;
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-    }
 
     private void Start()
     {
@@ -182,11 +172,12 @@ public class FootstepSystem : MonoBehaviour
         footstepSource.mute = muted;
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnSpookLevelChanged -= OnSpookLevelChanged;
         }
+        base.OnDestroy();
     }
 }

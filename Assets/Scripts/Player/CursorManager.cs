@@ -7,9 +7,8 @@ using UnityEngine;
 /// Manages cursor visibility and lock state.
 /// Centralizes cursor control to prevent conflicts between systems.
 /// </summary>
-public class CursorManager : MonoBehaviour
+public class CursorManager : SingletonBase<CursorManager>
 {
-    public static CursorManager Instance { get; private set; }
 
     [Header("Settings")]
     [SerializeField] private bool startLocked = true;
@@ -17,21 +16,6 @@ public class CursorManager : MonoBehaviour
     // State tracking
     private bool isCursorLocked = false;
     private int lockRequestCount = 0;
-
-    private void Awake()
-    {
-        // Singleton with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

@@ -10,12 +10,11 @@ using System.Text;
 /// Handles streaming LLM responses for real-time feedback.
 /// Allows spirits to "bleed" partial responses into the environment.
 /// </summary>
-public class LLMStreamManager : MonoBehaviour
+public class LLMStreamManager : SingletonBase<LLMStreamManager>
 {
-    public static LLMStreamManager Instance { get; private set; }
 
     [Header("LLM Configuration")]
-    [SerializeField] private string streamEndpoint = "http://localhost:8080/completion";
+    [SerializeField] private string streamEndpoint = "http://localhost:11434/api/generate";
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
     [SerializeField] private float requestTimeout = 60f; // Timeout in seconds
@@ -29,21 +28,6 @@ public class LLMStreamManager : MonoBehaviour
     private bool isStreaming = false;
     private Coroutine currentStreamCoroutine;
     private UnityWebRequest activeRequest; // Track active request for cancellation
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     /// <summary>
     /// Starts streaming a spirit's response.
@@ -91,17 +75,31 @@ public class LLMStreamManager : MonoBehaviour
     /// </summary>
     private IEnumerator StreamRequest(string prompt)
     {
-        // Create request body with consistent stop tokens
-        LLMStreamRequest requestData = new LLMStreamRequest
-        {
-            prompt = prompt,
-            temperature = temperature,
-            n_predict = maxTokens,
-            stream = true,
-            stop = new string[] { "User:", "\n\n" }
-        };
+        // Build request body based on active backend
+        string requestBody;
+        bool useOllama = LLMManager.Instance != null
+            && LLMManager.Instance.Backend == LLMManager.LLMBackend.Ollama;
 
-        string requestBody = JsonUtility.ToJson(requestData);
+        if (useOllama)
+        {
+            requestBody = JsonUtility.ToJson(new OllamaStreamRequest
+            {
+                model = LLMManager.Instance.OllamaModel,
+                prompt = prompt,
+                stream = true
+            });
+        }
+        else
+        {
+            requestBody = JsonUtility.ToJson(new LLMStreamRequest
+            {
+                prompt = prompt,
+                temperature = temperature,
+                n_predict = maxTokens,
+                stream = true,
+                stop = new string[] { "User:", "\n\n" }
+            });
+        }
 
         using (UnityWebRequest request = new UnityWebRequest(streamEndpoint, "POST"))
         {
@@ -275,9 +273,18 @@ public class LLMStreamManager : MonoBehaviour
                 continue;
             }
 
-            // Try parsing as direct JSON (non-SSE format)
+            // Try parsing as direct JSON (non-SSE format — Ollama or llama.cpp)
             try
             {
+                // Try Ollama format first (uses "response" field)
+                OllamaStreamResponse ollamaResp = JsonUtility.FromJson<OllamaStreamResponse>(trimmedLine);
+                if (ollamaResp != null && !string.IsNullOrEmpty(ollamaResp.response))
+                {
+                    result.Append(ollamaResp.response);
+                    continue;
+                }
+
+                // Try llama.cpp format (uses "content" field)
                 LLMStreamResponse response = JsonUtility.FromJson<LLMStreamResponse>(trimmedLine);
                 if (response != null && !string.IsNullOrEmpty(response.content))
                 {
@@ -380,6 +387,8 @@ public class LLMStreamManager : MonoBehaviour
     }
 
     // Request/Response structures
+
+    // llama.cpp format
     [System.Serializable]
     private class LLMStreamRequest
     {
@@ -390,6 +399,15 @@ public class LLMStreamManager : MonoBehaviour
         public string[] stop;
     }
 
+    // Ollama format
+    [System.Serializable]
+    private class OllamaStreamRequest
+    {
+        public string model;
+        public string prompt;
+        public bool stream;
+    }
+
     [System.Serializable]
     private class LLMStreamResponse
     {
@@ -397,13 +415,18 @@ public class LLMStreamManager : MonoBehaviour
         public bool stop;
     }
 
-    private void OnDestroy()
+    // Ollama streams JSON lines with "response" field
+    [System.Serializable]
+    private class OllamaStreamResponse
     {
-        // Cancel any active stream and clear singleton reference
+        public string response;
+        public bool done;
+    }
+
+    protected override void OnDestroy()
+    {
+        // Cancel any active stream before cleanup
         CancelStream();
-        if (Instance == this)
-        {
-            Instance = null;
-        }
+        base.OnDestroy();
     }
 }

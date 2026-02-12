@@ -7,10 +7,8 @@ using UnityEngine;
 /// Global system coordinator that orchestrates emotion, VFX, and sound per frame.
 /// Acts as the ritual heartbeat of the Cursed Portal experience.
 /// </summary>
-public class RitualLoop : MonoBehaviour
+public class RitualLoop : SingletonBase<RitualLoop>
 {
-    public static RitualLoop Instance { get; private set; }
-
     [Header("Update Settings")]
     [SerializeField] private bool useFixedTimestep = false;
     [SerializeField] private float updateInterval = 0.5f; // Seconds between updates if fixed
@@ -28,21 +26,6 @@ public class RitualLoop : MonoBehaviour
     // Target values for smooth transitions
     private float targetFogDensity = 0.01f;
     private float targetAudioVolume = 0.3f;
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Update()
     {
@@ -264,12 +247,4 @@ public class RitualLoop : MonoBehaviour
         Debug.Log("[RitualLoop] Reset to initial state");
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference on destroy to prevent memory leaks
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
 }

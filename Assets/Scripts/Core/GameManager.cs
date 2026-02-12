@@ -8,10 +8,8 @@ using UnityEngine.SceneManagement;
 /// Central game state manager for Cursed Portal.
 /// Handles initialization, scene transitions, and game flow.
 /// </summary>
-public class GameManager : MonoBehaviour
+public class GameManager : SingletonBase<GameManager>
 {
-    public static GameManager Instance { get; private set; }
-
     [Header("Game State")]
     [SerializeField] private GameState currentState = GameState.Playing;
 
@@ -35,20 +33,6 @@ public class GameManager : MonoBehaviour
         Transitioning,
         Epilogue,
         GameOver
-    }
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
     }
 
     private void Start()
@@ -183,11 +167,12 @@ public class GameManager : MonoBehaviour
 #endif
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnDimensionBreach -= OnDimensionBreach;
         }
+        base.OnDestroy();
     }
 }

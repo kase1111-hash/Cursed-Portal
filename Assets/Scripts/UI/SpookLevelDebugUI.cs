@@ -8,10 +8,8 @@ using UnityEngine.UI;
 /// Debug UI overlay for monitoring and controlling spook level.
 /// Shows real-time game state information during development.
 /// </summary>
-public class SpookLevelDebugUI : MonoBehaviour
+public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
 {
-    public static SpookLevelDebugUI Instance { get; private set; }
-
     [Header("UI References")]
     [SerializeField] private Canvas debugCanvas;
     [SerializeField] private Slider spookSlider;
@@ -27,19 +25,6 @@ public class SpookLevelDebugUI : MonoBehaviour
     // State
     private bool isVisible = false;
     private float updateTimer = 0f;
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

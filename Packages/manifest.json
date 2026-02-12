@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "com.unity.cinemachine": "2.9.7",
+    "com.unity.inputsystem": "1.7.0",
+    "com.unity.render-pipelines.universal": "16.0.6",
+    "com.unity.textmeshpro": "3.0.9",
+    "com.unity.timeline": "1.8.7",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.ai": "1.0.0",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.particlesystem": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
+    "com.unity.modules.unitywebrequestwww": "1.0.0",
+    "com.undream.llmunity": "https://github.com/undreamai/LLMUnity.git"
+  }
+}

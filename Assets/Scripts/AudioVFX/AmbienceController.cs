@@ -7,10 +7,8 @@ using UnityEngine;
 /// Controls layered ambient audio that evolves with spook level.
 /// Manages multiple audio layers (drone, ticks, whispers) that blend dynamically.
 /// </summary>
-public class AmbienceController : MonoBehaviour
+public class AmbienceController : SceneSingletonBase<AmbienceController>
 {
-    public static AmbienceController Instance { get; private set; }
-
     [System.Serializable]
     public class AmbienceLayer
     {
@@ -43,19 +41,6 @@ public class AmbienceController : MonoBehaviour
     private int currentSpookLevel = 0;
     private float[] targetVolumes;
     private float nextEventTime;
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -276,11 +261,12 @@ public class AmbienceController : MonoBehaviour
         masterVolume = 0f;
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnSpookLevelChanged -= OnSpookLevelChanged;
         }
+        base.OnDestroy();
     }
 }

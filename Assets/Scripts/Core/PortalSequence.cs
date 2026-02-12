@@ -10,9 +10,8 @@ using System.Collections;
 /// Handles the portal transition sequence when spook level reaches maximum.
 /// Manages the breach effect and scene transition to OtherDimension.
 /// </summary>
-public class PortalSequence : MonoBehaviour
+public class PortalSequence : SingletonBase<PortalSequence>
 {
-    public static PortalSequence Instance { get; private set; }
 
     [Header("Transition Settings")]
     [SerializeField] private string targetSceneName = "OtherDimension";
@@ -35,21 +34,6 @@ public class PortalSequence : MonoBehaviour
 
     // State
     private bool isTransitioning = false;
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

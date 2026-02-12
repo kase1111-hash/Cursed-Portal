@@ -9,9 +9,8 @@ using TMPro;
 /// Manages the chat UI for player-spirit communication.
 /// Handles input, message display, and visibility toggling.
 /// </summary>
-public class UIChat : MonoBehaviour
+public class UIChat : SceneSingletonBase<UIChat>
 {
-    public static UIChat Instance { get; private set; }
 
     [Header("UI Components")]
     [SerializeField] private TMP_InputField inputField;
@@ -33,20 +32,6 @@ public class UIChat : MonoBehaviour
     // State
     private bool isVisible = false;
     private string lastUserMessage = "";
-
-    private void Awake()
-    {
-        // Singleton pattern
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
