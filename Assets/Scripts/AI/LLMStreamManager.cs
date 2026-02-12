@@ -10,9 +10,8 @@ using System.Text;
 /// Handles streaming LLM responses for real-time feedback.
 /// Allows spirits to "bleed" partial responses into the environment.
 /// </summary>
-public class LLMStreamManager : MonoBehaviour
+public class LLMStreamManager : SingletonBase<LLMStreamManager>
 {
-    public static LLMStreamManager Instance { get; private set; }
 
     [Header("LLM Configuration")]
     [SerializeField] private string streamEndpoint = "http://localhost:8080/completion";
@@ -29,21 +28,6 @@ public class LLMStreamManager : MonoBehaviour
     private bool isStreaming = false;
     private Coroutine currentStreamCoroutine;
     private UnityWebRequest activeRequest; // Track active request for cancellation
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     /// <summary>
     /// Starts streaming a spirit's response.
@@ -397,13 +381,10 @@ public class LLMStreamManager : MonoBehaviour
         public bool stop;
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
-        // Cancel any active stream and clear singleton reference
+        // Cancel any active stream before cleanup
         CancelStream();
-        if (Instance == this)
-        {
-            Instance = null;
-        }
+        base.OnDestroy();
     }
 }

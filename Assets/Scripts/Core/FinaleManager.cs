@@ -8,9 +8,8 @@ using System.Collections;
 /// Manages the finale sequence in the OtherDimension scene.
 /// Coordinates epilogue narration, visual effects, and final player choice.
 /// </summary>
-public class FinaleManager : MonoBehaviour
+public class FinaleManager : SceneSingletonBase<FinaleManager>
 {
-    public static FinaleManager Instance { get; private set; }
 
     [Header("References")]
     [SerializeField] private EpilogueNarrator epilogueNarrator;
@@ -32,19 +31,6 @@ public class FinaleManager : MonoBehaviour
     private bool finaleStarted = false;
     private bool epilogueComplete = false;
     private bool playerAwakening = false;
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

@@ -7,10 +7,8 @@ using UnityEngine;
 /// First-person camera controller with mouse look.
 /// Handles vertical (pitch) and horizontal (yaw) rotation.
 /// </summary>
-public class CameraController : MonoBehaviour
+public class CameraController : SceneSingletonBase<CameraController>
 {
-    public static CameraController Instance { get; private set; }
-
     [Header("Mouse Look Settings")]
     [SerializeField] private float mouseSensitivity = 2f;
     [SerializeField] private float smoothing = 2f;
@@ -48,27 +46,25 @@ public class CameraController : MonoBehaviour
     // Control state
     private bool canLook = true;
 
-    private void Awake()
+    protected override void Awake()
     {
-        // Singleton
-        if (Instance == null)
+        base.Awake();
+        if (Instance == this)
         {
-            Instance = this;
-        }
+            cam = GetComponent<Camera>();
+            if (cam == null)
+            {
+                cam = Camera.main;
+            }
 
-        cam = GetComponent<Camera>();
-        if (cam == null)
-        {
-            cam = Camera.main;
-        }
+            // Auto-find player body if not assigned
+            if (playerBody == null)
+            {
+                playerBody = transform.parent;
+            }
 
-        // Auto-find player body if not assigned
-        if (playerBody == null)
-        {
-            playerBody = transform.parent;
+            targetFOV = baseFOV;
         }
-
-        targetFOV = baseFOV;
     }
 
     private void Start()

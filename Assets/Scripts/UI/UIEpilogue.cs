@@ -10,10 +10,8 @@ using System.Collections;
 /// Handles the epilogue text display in the OtherDimension scene.
 /// Features typewriter effect and conclusion prompts.
 /// </summary>
-public class UIEpilogue : MonoBehaviour
+public class UIEpilogue : SceneSingletonBase<UIEpilogue>
 {
-    public static UIEpilogue Instance { get; private set; }
-
     [Header("UI Components")]
     [SerializeField] private TMP_Text epilogueText;
     [SerializeField] private TMP_Text promptText;
@@ -36,20 +34,6 @@ public class UIEpilogue : MonoBehaviour
     private bool isDisplaying = false;
     private bool displayComplete = false;
     private Coroutine displayCoroutine;
-
-    private void Awake()
-    {
-        // Singleton pattern
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

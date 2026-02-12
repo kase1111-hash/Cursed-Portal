@@ -1,0 +1,186 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  serializedVersion: 24
+  productGUID: d3b2c5e8f1a4b7c6d9e0f2a3b4c5d6e7
+  AndroidProfiler: 0
+  AndroidFilterTouchesWhenObscured: 0
+  AndroidEnableSustainedPerformanceMode: 0
+  defaultScreenWidth: 1920
+  defaultScreenHeight: 1080
+  defaultScreenWidthWeb: 960
+  defaultScreenHeightWeb: 600
+  m_StereoRenderingPath: 0
+  m_ActiveColorSpace: 1
+  m_SpriteMeshType: 1
+  m_SpritePackerPadding: 1
+  m_SpriteMaxAtlasSize: 2048
+  m_SpriteGenerateFallbackPhysicsShape: 1
+  runInBackground: 1
+  companyName: CursedPortal
+  productName: Cursed Portal - Poe Parlor
+  defaultCursor: {fileID: 0}
+  cursorHotspot: {x: 0, y: 0}
+  m_ShowUnitySplashScreen: 1
+  m_SplashScreenOverlayOpacity: 1
+  m_SplashScreenAnimation: 1
+  m_SplashScreenLogoStyle: 1
+  m_SplashScreenDrawMode: 0
+  m_SplashScreenBackgroundAnimationZoom: 1
+  m_SplashScreenLogoAnimationZoom: 1
+  m_SplashScreenBackgroundLandscapeAspect: 1
+  m_SplashScreenBackgroundPortraitAspect: 1
+  m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
+  m_SplashScreenLogos: []
+  m_VirtualTexturingSupportEnabled: 0
+  m_BuildTargetGraphicsJobs:
+  - m_BuildTarget: WindowsStandaloneSupport
+    m_GraphicsJobs: 0
+  - m_BuildTarget: LinuxStandaloneSupport
+    m_GraphicsJobs: 0
+  - m_BuildTarget: WebGLSupport
+    m_GraphicsJobs: 0
+  openGLRequireES31: 0
+  openGLRequireES31AEP: 0
+  openGLRequireES32: 0
+  m_TemplateCustomTags: {}
+  mobileMTRendering:
+    Android: 1
+    iPhone: 1
+    tvOS: 1
+  m_BuildTargetBatching: []
+  m_BuildTargetShaderSettings: []
+  m_BuildTargetGroupLightmapEncodingQuality: []
+  m_BuildTargetGroupHDRCubemapEncodingQuality: []
+  m_BuildTargetNormalMapEncoding: []
+  m_BuildTargetDefaultTextureCompressionFormat: []
+  playModeTestRunnerEnabled: 0
+  runPlayModeTestAsEditModeTest: 0
+  actionOnDotNetUnhandledException: 1
+  enableInternalProfiler: 0
+  logObjCUncaughtExceptions: 1
+  enableCrashReportAPI: 0
+  cameraUsageDescription:
+  locationUsageDescription:
+  microphoneUsageDescription:
+  bluetoothUsageDescription:
+  macOSTargetOSVersion: 10.13.0
+  m_UseCustomGfxSystemInfo: 0
+  m_DefaultShaderChunkSizeInMB: 16
+  m_DefaultShaderChunkCount: 0
+  allowedAutorotateToPortrait: 1
+  allowedAutorotateToPortraitUpsideDown: 1
+  allowedAutorotateToLandscapeRight: 1
+  allowedAutorotateToLandscapeLeft: 1
+  useOSAutorotation: 1
+  use32BitDisplayBuffer: 1
+  preserveFramebufferAlpha: 0
+  disableDepthAndStencilBuffers: 0
+  androidStartInFullscreen: 1
+  androidRenderOutsideSafeArea: 1
+  androidUseSwappy: 1
+  androidBlitType: 0
+  androidResizableWindow: 0
+  androidDefaultWindowWidth: 1920
+  androidDefaultWindowHeight: 1080
+  androidMinimumWindowWidth: 400
+  androidMinimumWindowHeight: 300
+  androidFullscreenMode: 1
+  defaultIsNativeResolution: 1
+  macRetinaSupport: 1
+  useMacAppStoreValidation: 0
+  gpuSkinning: 1
+  xboxPIXTextureCapture: 0
+  xboxEnableAvatar: 0
+  xboxEnableKinect: 0
+  xboxEnableKinectAutoTracking: 0
+  xboxEnableFitness: 0
+  visibleInBackground: 1
+  fullscreenMode: 1
+  xboxSpeechDB: 0
+  xboxEnableHeadOrientation: 0
+  xboxEnableGuest: 0
+  xboxEnablePIXSampling: 0
+  metalFramebufferOnly: 0
+  n3dsDisableStereoscopicView: 0
+  n3dsEnableSharedListOpt: 1
+  n3dsEnableVSync: 0
+  xboxOneResolution: 0
+  xboxOneSResolution: 0
+  xboxOneXResolution: 3
+  xboxOneMonoLoggingLevel: 0
+  xboxOneLoggingLevel: 1
+  xboxOneDisableEsram: 0
+  xboxOneEnableTypeOptimization: 0
+  xboxOnePresentImmediateThreshold: 0
+  switchQueueCommandMemory: 0
+  switchQueueControlMemory: 16384
+  switchQueueComputeMemory: 262144
+  switchNVNShaderPoolsGranularity: 33554432
+  switchNVNDefaultPoolsGranularity: 16777216
+  switchNVNOtherPoolsGranularity: 16777216
+  switchGpuScratchDeallocationRegion: 0
+  switchAllowGpuScratchShrinking: 0
+  switchNVNMaxPublicTextureIDCount: 0
+  switchNVNMaxPublicSamplerIDCount: 0
+  switchNVNGraphicsFirmwareMemory: 32
+  m_ColorGamuts: 00000000
+  legacyClampBlendShapeWeights: 0
+  hdrBitmapEncodingFormat: 2
+  virtualTexturingSupportEnabled: 0
+  m_MTRendering: 1
+  mipStripping: 0
+  numberOfMipsStripped: 0
+  m_StackTraceTypes: 010000000100000001000000010000000100000001000000
+  iosAppInBackgroundBehavior: 0
+  displayResolutionDialog: 0
+  iosUseCustomAppBackgroundBehavior: 0
+  allowFullscreenSwitch: 1
+  graphicsJobMode: 0
+  macFullscreenMode: 2
+  d3d9FullscreenMode: 1
+  d3d11FullscreenMode: 1
+  playerDataPath:
+  forceSingleInstance: 0
+  resizableWindow: 0
+  usePlayerLog: 1
+  bakeCollisionMeshes: 0
+  forceSRGBBlit: 1
+  enableOpenGLProfilerGPURecorders: 1
+  m_Logging:
+    Debug: 1
+    Info: 1
+    Warning: 1
+    Error: 1
+    Fatal: 1
+  m_BuildTargetGroupRenderPipeline:
+  - m_BuildTarget: Standalone
+    m_RenderPipeline: {fileID: 0}
+  m_GraphicsAPIs:
+  - Standalone:
+    - 2
+    - 15
+  m_ScriptingRuntimeVersion: 1
+  m_ScriptingBackend:
+    Standalone: 1
+  m_IL2CPPCompilerConfiguration:
+    Standalone: 0
+  m_ManagedStrippingLevel:
+    Standalone: 1
+  incrementalIl2cppBuild:
+    Standalone: 0
+  allowUnsafeCode: 0
+  useDeterministicCompilation: 1
+  m_ScriptingDefineSymbols: {}
+  m_AdditionalCompilerArguments: {}
+  m_PlatformArchitecture: {}
+  scriptingDefineSymbols: {}
+  apiCompatibilityLevelPerPlatform:
+    Standalone: 3
+  m_PerPlatformDefaultTextureFormat: {}
+  m_RenderingPath: 1
+  m_MobileRenderingPath: 1
+  bundleVersion: 0.1.0
+  preloadedAssets: []
+  m_GraphicsJobsMode: 0

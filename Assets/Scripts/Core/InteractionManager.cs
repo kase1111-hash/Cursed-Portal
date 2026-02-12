@@ -7,10 +7,8 @@ using UnityEngine;
 /// Handles player interaction with objects in the scene.
 /// Raycasts from camera center and detects IInteractable objects.
 /// </summary>
-public class InteractionManager : MonoBehaviour
+public class InteractionManager : SceneSingletonBase<InteractionManager>
 {
-    public static InteractionManager Instance { get; private set; }
-
     [Header("Interaction Settings")]
     [SerializeField] private float interactionRange = 3f;
     [SerializeField] private LayerMask interactableMask = ~0; // Default to all layers
@@ -22,20 +20,6 @@ public class InteractionManager : MonoBehaviour
     private Camera mainCamera;
     private IInteractable currentTarget;
     private IInteractable previousTarget;
-
-    private void Awake()
-    {
-        // Singleton pattern
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {

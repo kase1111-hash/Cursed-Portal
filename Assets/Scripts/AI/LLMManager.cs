@@ -9,9 +9,8 @@ using System.Collections;
 /// Central manager for LLM-based Poe spirit interactions.
 /// Handles spirit summoning, context building, and response processing.
 /// </summary>
-public class LLMManager : MonoBehaviour
+public class LLMManager : SingletonBase<LLMManager>
 {
-    public static LLMManager Instance { get; private set; }
 
     [Header("LLM Configuration")]
     [SerializeField] private string llmEndpoint = "http://localhost:8080/completion";
@@ -46,21 +45,6 @@ public class LLMManager : MonoBehaviour
     // Cached story texts to avoid blocking I/O during gameplay
     private System.Collections.Generic.Dictionary<string, string> cachedStories =
         new System.Collections.Generic.Dictionary<string, string>();
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -411,12 +395,4 @@ public class LLMManager : MonoBehaviour
         public string response;
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference on destroy to prevent memory leaks
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
 }

@@ -7,9 +7,8 @@ using UnityEngine;
 /// Manages all audio in the Cursed Portal including ambient sounds,
 /// whispers, sound effects, and voice synthesis integration.
 /// </summary>
-public class AudioManager : MonoBehaviour
+public class AudioManager : SingletonBase<AudioManager>
 {
-    public static AudioManager Instance { get; private set; }
 
     [Header("Audio Sources")]
     [SerializeField] private AudioSource ambientSource;
@@ -34,21 +33,6 @@ public class AudioManager : MonoBehaviour
 
     // Current state
     private int currentWhisperLevel = 0;
-
-    private void Awake()
-    {
-        // Singleton pattern with persistence
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -278,12 +262,4 @@ public class AudioManager : MonoBehaviour
         if (whisperSource != null) whisperSource.Stop();
     }
 
-    private void OnDestroy()
-    {
-        // Clear singleton reference on destroy to prevent memory leaks
-        if (Instance == this)
-        {
-            Instance = null;
-        }
-    }
 }

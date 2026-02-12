@@ -8,10 +8,8 @@ using UnityEngine.UI;
 /// Creates a heartbeat audio-visual effect that intensifies with spook level.
 /// Combines audio pulse with screen vignette pulse.
 /// </summary>
-public class HeartbeatEffect : MonoBehaviour
+public class HeartbeatEffect : SceneSingletonBase<HeartbeatEffect>
 {
-    public static HeartbeatEffect Instance { get; private set; }
-
     [Header("Audio")]
     [SerializeField] private AudioSource heartbeatSource;
     [SerializeField] private AudioClip heartbeatClip;
@@ -39,19 +37,6 @@ public class HeartbeatEffect : MonoBehaviour
     private float beatTimer = 0f;
     private float beatInterval;
     private int currentSpookLevel = 0;
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-    }
 
     private void Start()
     {
@@ -231,11 +216,12 @@ public class HeartbeatEffect : MonoBehaviour
     /// </summary>
     public float GetCurrentBPM() => currentBPM;
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnSpookLevelChanged -= OnSpookLevelChanged;
         }
+        base.OnDestroy();
     }
 }
