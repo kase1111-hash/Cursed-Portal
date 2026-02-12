@@ -282,4 +282,13 @@ public class MirrorProp : MonoBehaviour, IInteractable
             ambientSource.Stop();
         }
     }
+
+    private void OnDestroy()
+    {
+        // Clean up material instance created via .material accessor
+        if (mirrorMaterial != null)
+        {
+            Object.Destroy(mirrorMaterial);
+        }
+    }
 }
