@@ -36,7 +36,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     /// <param name="userMessage">The user's message</param>
     public IEnumerator StreamSpiritSpeech(string systemContext, string userMessage)
     {
-        // Thread-safe check and set of streaming state
+        // Cancel any in-flight stream before starting a new one
         lock (streamLock)
         {
             if (isStreaming)
@@ -49,17 +49,21 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 
         Debug.Log("[LLMStreamManager] Starting stream...");
 
-        // Build full prompt
         string fullPrompt = $"{systemContext}\n\nUser: {userMessage}\n\nSpirit:";
 
-        // Notify UI that response is starting
         if (UIChat.Instance != null)
         {
             UIChat.Instance.AppendSystem("*The spirit stirs...*");
         }
 
-        // Use streaming request
-        yield return currentStreamCoroutine = StartCoroutine(StreamRequest(fullPrompt));
+        // Start inner coroutine and track it under the lock
+        Coroutine inner = StartCoroutine(StreamRequest(fullPrompt));
+        lock (streamLock)
+        {
+            currentStreamCoroutine = inner;
+        }
+
+        yield return inner;
 
         lock (streamLock)
         {

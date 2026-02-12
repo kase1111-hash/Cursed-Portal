@@ -255,7 +255,7 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
 
         // Fade out audio
         float elapsed = 0f;
-        float startVolume = ambientSource.volume;
+        float startVolume = ambientSource != null ? ambientSource.volume : 0f;
 
         while (elapsed < fadeOutDuration)
         {

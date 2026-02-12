@@ -98,6 +98,7 @@ public class EpilogueNarrator : MonoBehaviour
 
         // Get player name (system username as proxy)
         string playerName = System.Environment.UserName;
+        if (string.IsNullOrEmpty(playerName)) playerName = "Mortal";
         promptBuilder.AppendLine($"Address the mortal as '{playerName}' once, if fitting.");
 
         return promptBuilder.ToString();
@@ -126,14 +127,32 @@ public class EpilogueNarrator : MonoBehaviour
             bool responseReceived = false;
             string epilogueText = "";
 
-            // Simple HTTP request (reusing LLMManager's approach)
-            string endpoint = "http://localhost:8080/completion";
-            string requestBody = JsonUtility.ToJson(new EpilogueRequest
+            // Build request using LLMManager's configured backend
+            string endpoint;
+            string requestBody;
+            bool useOllama = LLMManager.Instance != null
+                && LLMManager.Instance.Backend == LLMManager.LLMBackend.Ollama;
+
+            if (useOllama)
             {
-                prompt = prompt + "\n\nCollective Voice:",
-                temperature = 0.9f,
-                n_predict = 150
-            });
+                endpoint = "http://localhost:11434/api/generate";
+                requestBody = JsonUtility.ToJson(new OllamaEpilogueRequest
+                {
+                    model = LLMManager.Instance.OllamaModel,
+                    prompt = prompt + "\n\nCollective Voice:",
+                    stream = false
+                });
+            }
+            else
+            {
+                endpoint = "http://localhost:8080/completion";
+                requestBody = JsonUtility.ToJson(new EpilogueRequest
+                {
+                    prompt = prompt + "\n\nCollective Voice:",
+                    temperature = 0.9f,
+                    n_predict = 150
+                });
+            }
 
             using (UnityEngine.Networking.UnityWebRequest request = new UnityEngine.Networking.UnityWebRequest(endpoint, "POST"))
             {
@@ -149,15 +168,35 @@ public class EpilogueNarrator : MonoBehaviour
                 {
                     try
                     {
-                        EpilogueResponse response = JsonUtility.FromJson<EpilogueResponse>(request.downloadHandler.text);
-                        epilogueText = response.content;
-                        responseReceived = true;
+                        // Try Ollama format first
+                        OllamaEpilogueResponse ollamaResp = JsonUtility.FromJson<OllamaEpilogueResponse>(request.downloadHandler.text);
+                        if (ollamaResp != null && !string.IsNullOrEmpty(ollamaResp.response))
+                        {
+                            epilogueText = ollamaResp.response;
+                            responseReceived = true;
+                        }
+                        else
+                        {
+                            // Try llama.cpp format
+                            EpilogueResponse resp = JsonUtility.FromJson<EpilogueResponse>(request.downloadHandler.text);
+                            if (resp != null && !string.IsNullOrEmpty(resp.content))
+                            {
+                                epilogueText = resp.content;
+                                responseReceived = true;
+                            }
+                        }
                     }
-                    catch
+                    catch (System.Exception e)
                     {
+                        Debug.LogWarning($"[EpilogueNarrator] Parse error: {e.Message}");
+                        // Fall back to raw text
                         epilogueText = request.downloadHandler.text;
                         responseReceived = !string.IsNullOrEmpty(epilogueText);
                     }
+                }
+                else
+                {
+                    Debug.LogWarning($"[EpilogueNarrator] Request failed: {request.error}");
                 }
             }
 
@@ -229,6 +268,8 @@ public class EpilogueNarrator : MonoBehaviour
     }
 
     // Request/Response structures
+
+    // llama.cpp format
     [System.Serializable]
     private class EpilogueRequest
     {
@@ -241,5 +282,21 @@ public class EpilogueNarrator : MonoBehaviour
     private class EpilogueResponse
     {
         public string content;
+    }
+
+    // Ollama format
+    [System.Serializable]
+    private class OllamaEpilogueRequest
+    {
+        public string model;
+        public string prompt;
+        public bool stream;
+    }
+
+    [System.Serializable]
+    private class OllamaEpilogueResponse
+    {
+        public string response;
+        public bool done;
     }
 }
