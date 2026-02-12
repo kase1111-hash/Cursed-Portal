@@ -64,7 +64,7 @@ public static class SceneSetup
         GameObject audio = new GameObject("Audio");
         audio.transform.SetParent(managers.transform);
         audio.AddComponent<AudioManager>();
-        audio.AddComponent<VoiceSynth>();
+        // VoiceSynth deferred to v2
 
         // VFX child
         GameObject vfx = new GameObject("VFX");

@@ -74,7 +74,6 @@ modules:
     - "Assets/Scripts/AudioVFX/VFXManager.cs"
     - "Assets/Scripts/AudioVFX/PostFXController.cs"
     - "Assets/Scripts/AudioVFX/PortalDistort.cs"
-    - "Assets/Scripts/AudioVFX/VoiceSynth.cs"
     - "Assets/Scripts/AudioVFX/DimensionalLight.cs"
   ui:
     - "Assets/Scripts/UI/UIChat.cs"
@@ -82,9 +81,11 @@ modules:
     - "Assets/Scripts/UI/DebugUI.cs"
   props:
     - "Assets/Scripts/Props/InteractableSpirit.cs"
-  editor:
-    - "Assets/Scripts/Editor/PrefabBuilder.cs"
-    - "Assets/Scripts/Editor/SceneWiringTool.cs"
+  editor:  # Deferred to Phase 7
+    - "Assets/Scripts/_Deferred/Editor/PrefabBuilder.cs"
+    - "Assets/Scripts/_Deferred/Editor/SceneWiringTool.cs"
+    - "Assets/Scripts/_Deferred/Editor/SceneSetup.cs"
+    - "Assets/Scripts/_Deferred/Editor/OtherDimensionSetup.cs"
 
 # Build targets
 build_targets:
