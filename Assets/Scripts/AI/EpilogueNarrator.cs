@@ -128,14 +128,17 @@ public class EpilogueNarrator : MonoBehaviour
             string epilogueText = "";
 
             // Build request using LLMManager's configured backend
-            string endpoint;
             string requestBody;
             bool useOllama = LLMManager.Instance != null
                 && LLMManager.Instance.Backend == LLMManager.LLMBackend.Ollama;
 
+            // Read endpoint from LLMManager to stay in sync with config
+            string endpoint = LLMManager.Instance != null
+                ? LLMManager.Instance.Endpoint
+                : "http://localhost:11434/api/generate";
+
             if (useOllama)
             {
-                endpoint = "http://localhost:11434/api/generate";
                 requestBody = JsonUtility.ToJson(new OllamaEpilogueRequest
                 {
                     model = LLMManager.Instance.OllamaModel,
@@ -145,7 +148,6 @@ public class EpilogueNarrator : MonoBehaviour
             }
             else
             {
-                endpoint = "http://localhost:8080/completion";
                 requestBody = JsonUtility.ToJson(new EpilogueRequest
                 {
                     prompt = prompt + "\n\nCollective Voice:",

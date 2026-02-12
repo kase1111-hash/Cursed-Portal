@@ -57,11 +57,8 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
 
     private void Update()
     {
-        // Check for awaken input after display complete
-        if (displayComplete && Input.GetKeyDown(KeyCode.E))
-        {
-            OnAwaken();
-        }
+        // Awakening input is handled by FinaleManager to avoid double-triggering.
+        // UIEpilogue only handles display; FinaleManager coordinates the exit sequence.
     }
 
     /// <summary>

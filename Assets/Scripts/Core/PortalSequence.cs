@@ -216,6 +216,13 @@ public class PortalSequence : SingletonBase<PortalSequence>
 
         Debug.Log("[PortalSequence] OtherDimension loaded!");
 
+        // After scene load, old scene-local UI references are destroyed.
+        // Rebuild a temporary fade canvas if needed.
+        if (fadeCanvasGroup == null)
+        {
+            EnsureFadeCanvas();
+        }
+
         // Brief pause in darkness
         yield return new WaitForSeconds(0.5f);
 
@@ -223,6 +230,38 @@ public class PortalSequence : SingletonBase<PortalSequence>
         yield return StartCoroutine(FadeIn());
 
         isTransitioning = false;
+    }
+
+    /// <summary>
+    /// Creates a temporary fade canvas when scene-local references are lost.
+    /// This happens after async scene load since the original UI was in the old scene.
+    /// </summary>
+    private void EnsureFadeCanvas()
+    {
+        GameObject canvasObj = new GameObject("PortalFadeCanvas");
+        canvasObj.transform.SetParent(transform); // child of DontDestroyOnLoad object
+
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 999;
+
+        fadeCanvasGroup = canvasObj.AddComponent<CanvasGroup>();
+        fadeCanvasGroup.alpha = 1f; // start fully black
+        fadeCanvasGroup.blocksRaycasts = true;
+
+        GameObject imageObj = new GameObject("FadeImage");
+        imageObj.transform.SetParent(canvasObj.transform, false);
+
+        RectTransform rt = imageObj.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        fadeImage = imageObj.AddComponent<Image>();
+        fadeImage.color = fadeEndColor; // black
+
+        Debug.Log("[PortalSequence] Created fallback fade canvas for scene transition");
     }
 
     /// <summary>
