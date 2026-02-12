@@ -1,8 +1,15 @@
 # PROJECT EVALUATION REPORT
 
-**Project:** Cursed Portal — Poe Parlor
+**Project:** Cursed Portal -- Poe Parlor
 **Primary Classification:** Good Concept, Bad Execution
 **Secondary Tags:** Underdeveloped, Over-Engineered Documentation
+
+> **Update (post-reboot):** Several issues identified below have been addressed since this
+> evaluation was written. The project now has a `ProjectSettings/` folder, `Packages/manifest.json`,
+> `ProjectVersion.txt` (Unity 2023.2.20f1), and the `SingletonBase<T>` refactor is complete.
+> `VoiceSynth.cs` has been removed. The 13 copy-pasted singleton implementations have been
+> replaced with inheritance from `SingletonBase<T>`. Scene files and asset files are still
+> absent and need to be generated via the editor tools. See `REBOOT_PLAN.md` for current status.
 
 ---
 
@@ -28,7 +35,7 @@ A first-person gothic horror game where AI-powered Poe spirits respond dynamical
 
 ### This is not a game. It is a specification that cosplays as a game.
 
-The repository contains **44 C# script files (~11,500 lines)** and **13 documentation files (~140KB of markdown)**. It does not contain a functional Unity project. The following are entirely absent:
+The repository contains **46 C# script files (~11,200 lines)** and multiple documentation files. At the time of the original evaluation, it did not contain a functional Unity project. The following were absent:
 
 - **No `ProjectSettings/` folder** (mandatory for any Unity project to open)
 - **No `Packages/manifest.json`** (required for Unity Package Manager)
