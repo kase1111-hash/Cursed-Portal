@@ -40,6 +40,7 @@ public class PostFXController : SingletonBase<PostFXController>
     private Bloom bloom;
     private Coroutine pulseCoroutine;
     private Coroutine glitchCoroutine;
+    private bool warnedNoVolume = false;
 
     // Initialization state
     private bool initialized = false;
@@ -61,7 +62,11 @@ public class PostFXController : SingletonBase<PostFXController>
             volume = FindFirstObjectByType<Volume>();
             if (volume == null)
             {
-                Debug.LogError("[PostFXController] No Volume found! Post-processing effects disabled.");
+                if (!warnedNoVolume)
+                {
+                    Debug.LogError("[PostFXController] No Volume found! Post-processing effects disabled.");
+                    warnedNoVolume = true;
+                }
                 return;
             }
         }
@@ -89,19 +94,28 @@ public class PostFXController : SingletonBase<PostFXController>
     }
 
     /// <summary>
+    /// Makes sure we drive a live Volume, re-binding after the parlor's Volume was destroyed by a scene change.
+    /// The finale has its own authored grade, so nothing is bound there.
+    /// </summary>
+    private bool EnsureBound()
+    {
+        if (initialized && volume != null) return true;
+
+        initialized = false;
+        volume = null;
+        if (FinaleManager.Instance != null) return false;
+
+        Initialize();
+        return initialized;
+    }
+
+    /// <summary>
     /// Sets post-processing effects based on spook level.
     /// </summary>
     /// <param name="level">Spook level (0-5)</param>
     public void SetLevel(int level)
     {
-        // Re-bind when the Volume we used was destroyed by a scene change
-        if (!initialized || volume == null)
-        {
-            initialized = false;
-            volume = null;
-            Initialize();
-            if (!initialized) return;
-        }
+        if (!EnsureBound()) return;
 
         currentLevel = level;
         float t = (float)level / 5f; // Normalized 0-1
@@ -161,7 +175,7 @@ public class PostFXController : SingletonBase<PostFXController>
     /// <param name="duration">Pulse duration</param>
     public void PulseVignette(float intensity, float duration)
     {
-        if (vignette != null)
+        if (EnsureBound() && vignette != null)
         {
             // One pulse at a time; a second one would capture a mid-pulse value as its rest value
             if (pulseCoroutine != null)
@@ -208,7 +222,7 @@ public class PostFXController : SingletonBase<PostFXController>
     /// </summary>
     public void TriggerGlitch(float duration = 0.5f)
     {
-        if (!initialized) return;
+        if (!EnsureBound()) return;
 
         if (glitchCoroutine != null)
         {

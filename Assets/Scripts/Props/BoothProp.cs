@@ -49,8 +49,22 @@ public class BoothProp : MonoBehaviour, IInteractable
         // booth's own collider into a trigger would make it walk-through and impossible to target with E.
         if (zoneCollider == null)
         {
+            BoxCollider solid = GetComponent<BoxCollider>();
             zoneCollider = gameObject.AddComponent<BoxCollider>();
-            zoneCollider.size = new Vector3(1.6f, 1f, 1.6f); // a margin around the booth (local units)
+            if (solid != null)
+            {
+                // The booth's own box plus ~0.6 m on each horizontal side (converted to local units)
+                Vector3 scale = transform.lossyScale;
+                const float margin = 0.6f;
+                zoneCollider.center = solid.center;
+                zoneCollider.size = solid.size + new Vector3(
+                    2f * margin / Mathf.Max(0.0001f, Mathf.Abs(scale.x)), 0f,
+                    2f * margin / Mathf.Max(0.0001f, Mathf.Abs(scale.z)));
+            }
+            else
+            {
+                zoneCollider.size = new Vector3(2f, 2f, 2f);
+            }
         }
         zoneCollider.isTrigger = true;
 

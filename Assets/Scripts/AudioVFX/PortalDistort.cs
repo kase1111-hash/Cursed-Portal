@@ -76,17 +76,25 @@ public class PortalDistort : MonoBehaviour
     {
         // Always drive our own material instance; editing an assigned asset would change it on disk
         // (in the editor) and on every renderer that shares it
-        Renderer rend = GetComponent<Renderer>();
-        if (rend != null && (portalMaterial == null || rend.sharedMaterial == portalMaterial))
+        if (portalMaterial != null)
         {
-            portalMaterial = rend.material;
-            ownsMaterial = true;
+            // Swap a private copy into whichever renderer slots (here or in children) use the material
+            Material copy = MaterialInstanceUtil.InstantiateWhereUsed(this, portalMaterial);
+            if (copy == null)
+            {
+                Debug.LogWarning($"[PortalDistort] {portalMaterial.name} isn't used by any renderer on {name} or its children; nothing to distort.");
+            }
+            portalMaterial = copy;
         }
-        else if (portalMaterial != null)
+        else
         {
-            portalMaterial = new Material(portalMaterial);
-            ownsMaterial = true;
+            Renderer rend = GetComponent<Renderer>();
+            if (rend != null)
+            {
+                portalMaterial = rend.material;
+            }
         }
+        ownsMaterial = portalMaterial != null;
 
         if (portalMaterial == null)
         {
@@ -94,19 +102,19 @@ public class PortalDistort : MonoBehaviour
             return;
         }
 
-        // Escalate with the spook level
+        // Initialize values
+        targetDistortion = baseDistortion;
+        targetHueShift = baseHueShift;
+        currentDistortion = baseDistortion;
+        currentHueShift = baseHueShift;
+
+        // Escalate with the spook level (after the base values, so the current level isn't overwritten)
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnSpookLevelChanged += SetSpookLevel;
             subscribed = true;
             SetSpookLevel(EventManager.Instance.SpookLevel);
         }
-
-        // Initialize values
-        targetDistortion = baseDistortion;
-        targetHueShift = baseHueShift;
-        currentDistortion = baseDistortion;
-        currentHueShift = baseHueShift;
 
         ApplyMaterialValues();
     }

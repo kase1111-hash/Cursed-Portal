@@ -136,7 +136,7 @@ public class CandleFlicker : MonoBehaviour
         currentSpookLevel = level;
 
         // Dramatic flicker on level change (restart rather than overlap)
-        if (level > 0)
+        if (level > 0 && isActiveAndEnabled)
         {
             if (dramaticFlickerCoroutine != null)
             {
@@ -195,6 +195,13 @@ public class CandleFlicker : MonoBehaviour
     public void SetBaseIntensity(float intensity)
     {
         baseIntensity = intensity;
+    }
+
+    private void OnDisable()
+    {
+        // A dramatic flicker stopped part-way must not leave the light stuck at its override
+        intensityOverride = -1f;
+        dramaticFlickerCoroutine = null;
     }
 
     private void OnDestroy()

@@ -109,8 +109,8 @@ public class CameraShake : SceneSingletonBase<CameraShake>
     public void Shake(float intensity, float duration = 0.5f)
     {
         AddTrauma(intensity);
-        // Adjust decay so it lasts approximately the duration (never zero, or the shake would last forever)
-        traumaDecay = Mathf.Max(0.1f, intensity / Mathf.Max(0.01f, duration));
+        // Decay the total trauma over roughly the duration (never zero, or the shake would last forever)
+        traumaDecay = Mathf.Max(0.1f, trauma / Mathf.Max(0.01f, duration));
     }
 
     /// <summary>

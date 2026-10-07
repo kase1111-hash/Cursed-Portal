@@ -59,10 +59,14 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
             originalMaterial = propRenderer.sharedMaterial;
         }
 
-        // The generators put the glow light on a child object
+        // The generators put the glow light on a child named "GlowLight" (other lights, e.g. candles, are left alone)
         if (glowLight == null)
         {
-            glowLight = GetComponentInChildren<Light>(true);
+            Transform glow = transform.Find("GlowLight");
+            if (glow != null)
+            {
+                glowLight = glow.GetComponent<Light>();
+            }
         }
 
         // Setup glow light
@@ -110,14 +114,10 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         }
 
         // Summon the spirit
-        if (LLMManager.Instance != null)
-        {
-            LLMManager.Instance.SummonSpirit(spiritKey);
-        }
+        bool summoned = LLMManager.Instance != null && LLMManager.Instance.SummonSpirit(spiritKey);
 
         // Increment spook level the first time each spirit is called up (replies to the player raise it further)
-        bool firstSummon = LLMManager.Instance == null || LLMManager.Instance.MarkFirstSummon(spiritKey);
-        if (firstSummon && EventManager.Instance != null)
+        if (summoned && LLMManager.Instance.MarkFirstSummon(spiritKey) && EventManager.Instance != null)
         {
             EventManager.Instance.IncrementSpook(spookIncrement);
         }
@@ -142,8 +142,9 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         Debug.Log($"[InteractableSpirit] Highlighting {gameObject.name}");
 
-        // Apply highlight via MaterialPropertyBlock (no material instance leak)
-        if (propRenderer != null)
+        // Apply highlight via MaterialPropertyBlock (no material instance leak); a PropHighlight on the
+        // prop owns the material effect instead (a property block would hide its animated emission)
+        if (propRenderer != null && propHighlight == null)
         {
             propRenderer.GetPropertyBlock(propBlock);
             propBlock.SetColor(EmissionColor, highlightColor * 0.5f);
@@ -173,7 +174,7 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         Debug.Log($"[InteractableSpirit] Unhighlighting {gameObject.name}");
 
         // Clear highlight: drop the override so the material's own emission shows again
-        if (propRenderer != null)
+        if (propRenderer != null && propHighlight == null)
         {
             propRenderer.SetPropertyBlock(null);
         }

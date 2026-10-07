@@ -49,11 +49,13 @@ public class MirrorProp : MonoBehaviour, IInteractable
         mirrorRenderer = GetComponent<Renderer>();
         if (mirrorMaterial != null)
         {
-            mirrorMaterial = new Material(mirrorMaterial);
-            if (mirrorRenderer != null)
+            // Swap a private copy into whichever renderer slots (here or in children, e.g. the glass) use it
+            Material copy = MaterialInstanceUtil.InstantiateWhereUsed(this, mirrorMaterial);
+            if (copy == null)
             {
-                mirrorRenderer.material = mirrorMaterial;
+                Debug.LogWarning($"[MirrorProp] {mirrorMaterial.name} isn't used by any renderer on {name} or its children; glitches won't show.");
             }
+            mirrorMaterial = copy;
         }
         else if (mirrorRenderer != null)
         {

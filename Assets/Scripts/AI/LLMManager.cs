@@ -226,13 +226,14 @@ public class LLMManager : SingletonBase<LLMManager>
     /// </summary>
     /// <param name="spiritKey">The spirit to summon (Raven, Narrator, Usher)</param>
     /// <param name="userMessage">What the player said; null when the spirit is summoned by a prop or zone</param>
-    public void SummonSpirit(string spiritKey, string userMessage = null)
+    /// <returns>True if the spirit was summoned</returns>
+    public bool SummonSpirit(string spiritKey, string userMessage = null)
     {
         // The conversation is over once the breach has begun
         if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
         {
             Debug.Log($"[LLMManager] Ignoring summon of {spiritKey} during the portal transition");
-            return;
+            return false;
         }
 
         SpiritProfile profile = GetProfile(spiritKey);
@@ -243,7 +244,7 @@ public class LLMManager : SingletonBase<LLMManager>
             {
                 UIChat.Instance.AppendSystem("*The spirits have not yet gathered... (spirit profiles not loaded)*");
             }
-            return;
+            return false;
         }
 
         ActiveSpirit = spiritKey;
@@ -272,6 +273,7 @@ public class LLMManager : SingletonBase<LLMManager>
             // Fallback to non-streaming
             StartCoroutine(SendChatRequest(context, userMessage));
         }
+        return true;
     }
 
     /// <summary>
@@ -469,6 +471,16 @@ public class LLMManager : SingletonBase<LLMManager>
     public bool MarkFirstSummon(string spiritKey)
     {
         return summonedSpirits.Add(spiritKey);
+    }
+
+    /// <summary>
+    /// Forgets this session's summons (for a restart).
+    /// </summary>
+    public void ResetSession()
+    {
+        summonedSpirits.Clear();
+        ActiveSpirit = null;
+        ActiveStory = null;
     }
 
     /// <summary>
