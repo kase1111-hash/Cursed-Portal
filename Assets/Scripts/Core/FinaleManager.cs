@@ -153,6 +153,9 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
         // Phase 4: Intensify effects over time
         yield return StartCoroutine(IntensifyEffects());
 
+        // The player may already have awakened (allowed as soon as the epilogue is shown)
+        if (playerAwakening) yield break;
+
         // Phase 5: Wait until the epilogue has actually been shown in full (the LLM may still be writing it)
         if (uiEpilogue != null && epilogueNarrator != null)
         {
@@ -202,7 +205,7 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
     {
         float elapsed = 0f;
 
-        while (elapsed < epilogueDuration)
+        while (elapsed < epilogueDuration && !playerAwakening)
         {
             elapsed += Time.deltaTime;
             float t = elapsed / epilogueDuration;

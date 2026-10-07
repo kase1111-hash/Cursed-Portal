@@ -2,6 +2,7 @@
 // Source: Module M1 - Player Systems
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Manages cursor visibility and lock state.
@@ -16,6 +17,33 @@ public class CursorManager : SingletonBase<CursorManager>
     // State tracking
     private bool isCursorLocked = false;
     private int lockRequestCount = 0;
+
+    protected override void Awake()
+    {
+        base.Awake();
+        if (Instance == this)
+        {
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+    }
+
+    protected override void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+        base.OnDestroy();
+    }
+
+    /// <summary>
+    /// UI that requested the cursor in the previous scene is gone; start the new scene locked.
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        lockRequestCount = 0;
+        LockCursor();
+    }
 
     private void Start()
     {
@@ -128,6 +156,14 @@ public class CursorManager : SingletonBase<CursorManager>
     public bool IsCursorLocked()
     {
         return isCursorLocked;
+    }
+
+    /// <summary>
+    /// True while some UI (chat, debug panel) has asked for a free cursor.
+    /// </summary>
+    public bool HasUnlockRequests()
+    {
+        return lockRequestCount > 0;
     }
 
     /// <summary>

@@ -384,6 +384,16 @@ public class UIChat : SceneSingletonBase<UIChat>
         AddEntry($"<color={systemColor}>[The slate is wiped clean...]</color>");
     }
 
+    protected override void OnDestroy()
+    {
+        // Give the cursor back if the scene unloads while the chat is open
+        if (Instance == this && isVisible && CursorManager.Instance != null)
+        {
+            CursorManager.Instance.ReleaseUnlock();
+        }
+        base.OnDestroy();
+    }
+
     /// <summary>
     /// Checks if the chat is currently visible.
     /// </summary>

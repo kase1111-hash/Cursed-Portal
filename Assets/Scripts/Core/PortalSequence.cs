@@ -362,6 +362,12 @@ public class PortalSequence : SingletonBase<PortalSequence>
     /// </summary>
     public void SkipToScene()
     {
+        if (!Application.CanStreamedLevelBeLoaded(targetSceneName))
+        {
+            Debug.LogError($"[PortalSequence] Scene '{targetSceneName}' is not in Build Settings; can't skip to it.");
+            return;
+        }
+
         if (!isTransitioning)
         {
             Debug.Log("[PortalSequence] Debug skip to OtherDimension");

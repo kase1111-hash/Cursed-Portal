@@ -129,8 +129,8 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
             currentMovement = Vector3.Lerp(currentMovement, Vector3.zero, deceleration * Time.deltaTime);
         }
 
-        // Apply movement
-        controller.Move(currentMovement * Time.deltaTime);
+        // Applied together with gravity in ApplyGravity: one Move per frame keeps
+        // controller.velocity (IsMoving) and controller.isGrounded meaningful
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
     private void ApplyGravity()
     {
         velocity.y += gravity * Time.deltaTime;
-        controller.Move(velocity * Time.deltaTime);
+        controller.Move((currentMovement + new Vector3(0f, velocity.y, 0f)) * Time.deltaTime);
     }
 
     /// <summary>

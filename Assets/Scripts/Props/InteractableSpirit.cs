@@ -93,6 +93,11 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         // no new greeting (which would cancel the reply in progress) and no extra spook
         if (LLMManager.Instance != null && LLMManager.Instance.ActiveSpirit == spiritKey)
         {
+            // (The spirit may have become active by other means, e.g. typing before touching any prop)
+            if (LLMManager.Instance.MarkFirstSummon(spiritKey) && EventManager.Instance != null)
+            {
+                EventManager.Instance.IncrementSpook(spookIncrement);
+            }
             if (UIChat.Instance != null)
             {
                 UIChat.Instance.Show();
