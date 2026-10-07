@@ -21,12 +21,12 @@ public static class SceneWiringTool
         int warningsFound = 0;
 
         // Find and verify managers
-        var eventMgr = Object.FindObjectOfType<EventManager>();
-        var audioMgr = Object.FindObjectOfType<AudioManager>();
-        var vfxMgr = Object.FindObjectOfType<VFXManager>();
-        var postFX = Object.FindObjectOfType<PostFXController>();
-        var llmMgr = Object.FindObjectOfType<LLMManager>();
-        var ritualLoop = Object.FindObjectOfType<RitualLoop>();
+        var eventMgr = Object.FindFirstObjectByType<EventManager>();
+        var audioMgr = Object.FindFirstObjectByType<AudioManager>();
+        var vfxMgr = Object.FindFirstObjectByType<VFXManager>();
+        var postFX = Object.FindFirstObjectByType<PostFXController>();
+        var llmMgr = Object.FindFirstObjectByType<LLMManager>();
+        var ritualLoop = Object.FindFirstObjectByType<RitualLoop>();
 
         // Check for missing managers
         if (eventMgr == null)
@@ -58,7 +58,7 @@ public static class SceneWiringTool
         // Wire PostFXController to Volume
         if (postFX != null)
         {
-            Volume volume = Object.FindObjectOfType<Volume>();
+            Volume volume = Object.FindFirstObjectByType<Volume>();
             if (volume != null)
             {
                 SerializedObject so = new SerializedObject(postFX);
@@ -79,7 +79,7 @@ public static class SceneWiringTool
         }
 
         // Verify interactables have proper setup
-        var interactables = Object.FindObjectsOfType<InteractableSpirit>();
+        var interactables = Object.FindObjectsByType<InteractableSpirit>(FindObjectsSortMode.None);
         foreach (var interactable in interactables)
         {
             // Check for collider
@@ -109,7 +109,7 @@ public static class SceneWiringTool
         }
 
         // Check UI
-        var uiChat = Object.FindObjectOfType<UIChat>();
+        var uiChat = Object.FindFirstObjectByType<UIChat>();
         if (uiChat == null)
         {
             Debug.LogWarning("[SceneWiringTool] UIChat not found in scene!");
@@ -150,11 +150,21 @@ public static class SceneWiringTool
         // Check UI
         report.AppendLine("\nUI:");
         isValid &= CheckComponent<UIChat>("UIChat", report);
+        isValid &= CheckComponent<UnityEngine.EventSystems.EventSystem>("EventSystem", report);
+        UIChat chat = Object.FindFirstObjectByType<UIChat>();
+        if (chat != null)
+        {
+            isValid &= CheckReferences(chat, report, "inputField", "chatLog", "scrollRect", "canvasGroup");
+        }
 
         // Check interactables
         report.AppendLine("\nINTERACTABLES:");
-        var interactables = Object.FindObjectsOfType<InteractableSpirit>();
+        var interactables = Object.FindObjectsByType<InteractableSpirit>(FindObjectsSortMode.None);
         report.AppendLine($"  Found {interactables.Length} InteractableSpirit(s)");
+        foreach (var interactable in interactables)
+        {
+            report.AppendLine($"    {interactable.gameObject.name} -> {interactable.GetSpiritKey()}");
+        }
         if (interactables.Length == 0)
         {
             report.AppendLine("  [WARNING] No interactable props found!");
@@ -178,19 +188,39 @@ public static class SceneWiringTool
 
         // Check lighting
         report.AppendLine("\nLIGHTING:");
-        var lights = Object.FindObjectsOfType<Light>();
+        var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
         report.AppendLine($"  Found {lights.Length} light(s)");
 
         // Check post-processing volume
         report.AppendLine("\nPOST-PROCESSING:");
-        var volume = Object.FindObjectOfType<Volume>();
+        if (GraphicsSettings.defaultRenderPipeline == null)
+        {
+            report.AppendLine("  [FAIL] No render pipeline asset: run CursedPortal > Configure URP Render Pipeline");
+            isValid = false;
+        }
+        var volume = Object.FindFirstObjectByType<Volume>();
         if (volume != null)
         {
-            report.AppendLine("  [OK] Volume found");
+            report.AppendLine(volume.sharedProfile != null
+                ? "  [OK] Volume found"
+                : "  [WARNING] Volume has no profile asset");
         }
         else
         {
             report.AppendLine("  [WARNING] No Volume found!");
+        }
+
+        // Check build settings
+        report.AppendLine("\nBUILD SETTINGS:");
+        if (Application.CanStreamedLevelBeLoaded("OtherDimension") ||
+            System.Array.Exists(EditorBuildSettings.scenes, s => s.enabled && s.path.EndsWith("/OtherDimension.unity") && System.IO.File.Exists(s.path)))
+        {
+            report.AppendLine("  [OK] OtherDimension scene registered");
+        }
+        else
+        {
+            report.AppendLine("  [FAIL] OtherDimension scene missing: run CursedPortal > Create OtherDimension Scene");
+            isValid = false;
         }
 
         // Summary
@@ -204,9 +234,25 @@ public static class SceneWiringTool
             "OK");
     }
 
+    private static bool CheckReferences(Object target, System.Text.StringBuilder report, params string[] fields)
+    {
+        bool ok = true;
+        SerializedObject so = new SerializedObject(target);
+        foreach (string field in fields)
+        {
+            SerializedProperty prop = so.FindProperty(field);
+            if (prop == null || prop.objectReferenceValue == null)
+            {
+                report.AppendLine($"  [FAIL] {target.GetType().Name}.{field} is not assigned");
+                ok = false;
+            }
+        }
+        return ok;
+    }
+
     private static bool CheckComponent<T>(string name, System.Text.StringBuilder report) where T : Component
     {
-        T component = Object.FindObjectOfType<T>();
+        T component = Object.FindFirstObjectByType<T>();
         if (component != null)
         {
             report.AppendLine($"  [OK] {name}");
@@ -222,18 +268,14 @@ public static class SceneWiringTool
     [MenuItem("CursedPortal/Create Interactable Layer", false, 30)]
     public static void CreateInteractableLayer()
     {
-        // This would require modifying TagManager asset
-        Debug.Log("[SceneWiringTool] To create Interactable layer:");
-        Debug.Log("1. Go to Edit > Project Settings > Tags and Layers");
-        Debug.Log("2. Add 'Interactable' to User Layer 6");
-        Debug.Log("3. Set all prop prefabs to this layer");
-
-        EditorUtility.DisplayDialog("Create Layer",
-            "Please manually create the 'Interactable' layer:\n\n" +
-            "1. Edit > Project Settings > Tags and Layers\n" +
-            "2. Add 'Interactable' to User Layer 6\n" +
-            "3. Set prop prefabs to this layer",
-            "OK");
+        // The layer is already defined in ProjectSettings/TagManager.asset (User Layer 8)
+        int layer = LayerMask.NameToLayer("Interactable");
+        string message = layer >= 0
+            ? $"The 'Interactable' layer exists (User Layer {layer}).\n\nAssign it to props and set " +
+              "InteractionManager's Interactable Mask to it if you want the interaction ray to ignore other objects."
+            : "Add 'Interactable' in Edit > Project Settings > Tags and Layers, then assign it to props.";
+        Debug.Log("[SceneWiringTool] " + message);
+        EditorUtility.DisplayDialog("Interactable Layer", message, "OK");
     }
 }
 #endif

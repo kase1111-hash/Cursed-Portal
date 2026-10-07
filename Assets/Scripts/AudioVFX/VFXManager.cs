@@ -33,7 +33,8 @@ public class VFXManager : SingletonBase<VFXManager>
 
     // Track fog burst coroutine to prevent stacking
     private Coroutine activeFogBurstCoroutine;
-    private float baseDensityBeforeBurst;
+    // Extra density from the current burst; RitualLoop eases the fog toward GetTargetFogDensity, which includes it
+    private float burstOffset = 0f;
 
     private void Start()
     {
@@ -100,41 +101,52 @@ public class VFXManager : SingletonBase<VFXManager>
     /// <param name="additionalDensity">Additional density to add</param>
     public void AddFogBurst(float additionalDensity)
     {
+        // The finale scene owns its own fog
+        if (FinaleManager.Instance != null) return;
+
         // Cancel any existing fog burst coroutine to prevent stacking
         if (activeFogBurstCoroutine != null)
         {
             StopCoroutine(activeFogBurstCoroutine);
-            // Restore to base density before starting new burst
-            RenderSettings.fogDensity = baseDensityBeforeBurst;
         }
 
-        // Store the current base density before burst
-        baseDensityBeforeBurst = baseFogDensity + (currentLevel * fogDensityPerLevel);
         activeFogBurstCoroutine = StartCoroutine(FogBurstCoroutine(additionalDensity, 2f));
     }
 
     private System.Collections.IEnumerator FogBurstCoroutine(float additionalDensity, float duration)
     {
-        // Use stored base density for consistent return target
-        float targetDensity = baseDensityBeforeBurst;
-        RenderSettings.fogDensity = targetDensity + additionalDensity;
+        // Raise the target rather than writing the fog directly, so RitualLoop's smoothing doesn't fight the burst
+        burstOffset = additionalDensity;
+        ApplyFogWithoutRitualLoop();
 
         yield return new WaitForSeconds(duration);
 
-        // Lerp back to target (level-appropriate) density
+        // Ease the burst back out
         float elapsed = 0f;
         float lerpDuration = 1f;
-        float burstDensity = RenderSettings.fogDensity;
 
         while (elapsed < lerpDuration)
         {
             elapsed += Time.deltaTime;
-            RenderSettings.fogDensity = Mathf.Lerp(burstDensity, targetDensity, elapsed / lerpDuration);
+            burstOffset = Mathf.Lerp(additionalDensity, 0f, elapsed / lerpDuration);
+            ApplyFogWithoutRitualLoop();
             yield return null;
         }
 
-        RenderSettings.fogDensity = targetDensity;
+        burstOffset = 0f;
+        ApplyFogWithoutRitualLoop();
         activeFogBurstCoroutine = null;
+    }
+
+    /// <summary>
+    /// RitualLoop normally drives the fog toward the target; without it, apply the target directly.
+    /// </summary>
+    private void ApplyFogWithoutRitualLoop()
+    {
+        if (RitualLoop.Instance == null)
+        {
+            RenderSettings.fogDensity = GetTargetFogDensity(currentLevel);
+        }
     }
 
     /// <summary>
@@ -209,7 +221,7 @@ public class VFXManager : SingletonBase<VFXManager>
     /// </summary>
     public float GetTargetFogDensity(int level)
     {
-        return baseFogDensity + (level * fogDensityPerLevel);
+        return baseFogDensity + (level * fogDensityPerLevel) + burstOffset;
     }
 
     /// <summary>

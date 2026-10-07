@@ -2,6 +2,7 @@
 // Source: Module M1 - Player Systems
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Manages cursor visibility and lock state.
@@ -17,6 +18,33 @@ public class CursorManager : SingletonBase<CursorManager>
     private bool isCursorLocked = false;
     private int lockRequestCount = 0;
 
+    protected override void Awake()
+    {
+        base.Awake();
+        if (Instance == this)
+        {
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+    }
+
+    protected override void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+        base.OnDestroy();
+    }
+
+    /// <summary>
+    /// UI that requested the cursor in the previous scene is gone; start the new scene locked.
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        lockRequestCount = 0;
+        LockCursor();
+    }
+
     private void Start()
     {
         if (startLocked)
@@ -29,14 +57,18 @@ public class CursorManager : SingletonBase<CursorManager>
         }
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void Update()
     {
-        // Emergency unlock with Alt key (for development)
-        if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
+        // Emergency unlock with Alt key (development only: in a release build every Alt+Tab would flip the lock).
+        // Ignored when Ctrl is held, since AltGr arrives as Ctrl+RightAlt when typing characters like '@'.
+        bool ctrlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+        if (!ctrlHeld && (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt)))
         {
             ToggleCursor();
         }
     }
+#endif
 
     /// <summary>
     /// Locks the cursor (invisible, confined to center).
@@ -124,6 +156,14 @@ public class CursorManager : SingletonBase<CursorManager>
     public bool IsCursorLocked()
     {
         return isCursorLocked;
+    }
+
+    /// <summary>
+    /// True while some UI (chat, debug panel) has asked for a free cursor.
+    /// </summary>
+    public bool HasUnlockRequests()
+    {
+        return lockRequestCount > 0;
     }
 
     /// <summary>

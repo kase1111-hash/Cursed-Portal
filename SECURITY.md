@@ -37,7 +37,7 @@ Security concerns relevant to this project include:
 
 #### Medium Priority
 - **Memory Corruption**: Issues with SpiritMemory persistence
-- **Build Pipeline**: Security of the YAML automation manifest
+- **Build Pipeline**: The editor build scripts (`Assets/Scripts/Editor/CursedPortalBuild.cs` and the scene generators)
 
 #### Lower Priority
 - **Local-only Issues**: As this runs locally with local LLM, network-based attacks are less relevant
@@ -45,8 +45,7 @@ Security concerns relevant to this project include:
 ### Out of Scope
 
 - Vulnerabilities in Unity itself (report to Unity)
-- Issues with LLMUnity package (report to that project)
-- Ollama/llama.cpp vulnerabilities (report to those projects)
+- Issues with Ollama or llama.cpp themselves (report to those projects)
 
 ## Security Best Practices for Users
 

@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Project documentation and ecosystem links
-- SEO keywords and related repository connections
+- `SetupURP` (CursedPortal > Configure URP Render Pipeline) and `CursedPortalBuild` (menu and `-executeMethod` builds)
+- Scene generators now save `Assets/Scenes/CursedPortal.unity` / `OtherDimension.unity`, register them in Build Settings, and wire every reference (chat UI, EventSystem, HUD prompt, screen effects, debug panels, VFX, volume profiles, FinaleManager, player camera)
+
+### Fixed
+- Compile errors: `[Header]` on a property (CS0592), nonexistent `PrimitiveType.Torus`
+- Package manifest: LLMUnity entry whose name didn't match its repo (blocked package resolution), redundant TextMesh Pro and unused Input System packages; legacy input handler pinned
+- No URP pipeline asset was assigned (post-processing did nothing, URP materials were magenta)
+- LLM streaming: JSON lines split across reads, dropped short tokens, total timeout cutting off slow replies, cancelled streams clobbering their replacement, Ollama options ignored, server errors not shown
+- Typing "e" in the chat re-triggered the prop and could fire the breach mid-sentence
+- Finale could not end (no FinaleManager, camera or TMP epilogue text), epilogue typewriter/awaken races
+- Spook effects stuck after the level dropped; breach reached after ~3 replies (greetings and repeat summons no longer escalate)
+- Many runtime issues in audio/VFX, player controller, props, UI and editor tools (see commit history)
+- `.gitignore` no longer ignores `*.cs.meta`, TMP resources or `packages-lock.json`; `DynamicsManager.asset` file name
 
 ## [1.0.0] - 2026-01-22
 
@@ -18,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Core Systems (M1-M10)
 - **M1 - Core Setup**: Base environment with URP lighting, fog, and player spawn
 - **M2 - Interaction Framework**: Raycast-based interaction system with IInteractable interface
-- **M3 - LLM Manager**: Central AI system for Poe spirit interactions via LLMUnity
+- **M3 - LLM Manager**: Central AI system for Poe spirit interactions via a local Ollama or llama.cpp server (UnityWebRequest)
 - **M4 - Event Manager**: Spook level system (0-5) with escalating horror effects
 - **M5 - Audio + VFX System**: Ambient audio, whispers, and particle effects
 - **M6 - Post-Processing Stack**: URP Volume profiles for horror intensity
@@ -57,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WebGL (with LLM fallback)
 
 ### Technical Details
-- Unity 2023.2 LTS with Universal Render Pipeline
+- Unity 2023.2 (2023.2.20f1, Tech Stream) with Universal Render Pipeline
 - Local LLM integration via Ollama/llama.cpp
 - ~11,200 lines of C# across 46 script files
 - Modular architecture with 25 independent modules

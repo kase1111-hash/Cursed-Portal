@@ -46,6 +46,16 @@ public class AmbienceController : SceneSingletonBase<AmbienceController>
     {
         InitializeLayers();
 
+        // Random events need a source too; layers get theirs automatically
+        if (eventSource == null)
+        {
+            GameObject eventObj = new GameObject("AmbienceEvents");
+            eventObj.transform.SetParent(transform);
+            eventSource = eventObj.AddComponent<AudioSource>();
+            eventSource.playOnAwake = false;
+            eventSource.spatialBlend = 0f;
+        }
+
         if (EventManager.Instance != null)
         {
             EventManager.Instance.OnSpookLevelChanged += OnSpookLevelChanged;

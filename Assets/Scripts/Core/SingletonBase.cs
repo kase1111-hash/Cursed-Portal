@@ -10,14 +10,23 @@ public abstract class SingletonBase<T> : MonoBehaviour where T : MonoBehaviour
 
     protected virtual void Awake()
     {
+        // DontDestroyOnLoad only works on root objects, so a manager on a child persists its whole root;
+        // keep persistent managers on a root that holds nothing scene-specific (see SceneSetup)
+        GameObject persistentRoot = transform.root.gameObject;
+
         if (Instance == null)
         {
             Instance = this as T;
-            DontDestroyOnLoad(gameObject);
+            if (transform.parent != null)
+            {
+                Debug.LogWarning($"[{typeof(T).Name}] is not on a root object; its whole hierarchy '{persistentRoot.name}' will persist across scenes.");
+            }
+            DontDestroyOnLoad(persistentRoot);
         }
         else
         {
-            Destroy(gameObject);
+            // Remove the same unit that would have persisted (the reloaded copy of that root)
+            Destroy(persistentRoot);
         }
     }
 

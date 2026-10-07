@@ -149,6 +149,9 @@ public class GameManager : SingletonBase<GameManager>
     public void RestartGame()
     {
         Time.timeScale = 1f;
+        if (LLMStreamManager.Instance != null) LLMStreamManager.Instance.CancelStream();
+        if (RitualLoop.Instance != null) RitualLoop.Instance.ResetRitual();
+        if (LLMManager.Instance != null) LLMManager.Instance.ResetSession();
         EventManager.Instance?.ResetSpook();
         SceneManager.LoadScene(mainSceneName);
         SetState(GameState.Playing);

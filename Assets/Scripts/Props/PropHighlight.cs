@@ -47,6 +47,10 @@ public class PropHighlight : MonoBehaviour
     private Material[] highlightMaterials;
     private GameObject outlineObject;
 
+    private Color[] originalEmission;
+    private bool materialsSwapped = false;
+    private bool ownsOutlineMaterial = false;
+
     private void Start()
     {
         originalScale = transform.localScale;
@@ -69,23 +73,59 @@ public class PropHighlight : MonoBehaviour
     {
         if (renderers == null || renderers.Length == 0) return;
 
+        // The highlight copies are made when a highlight starts (see BeginHighlightMaterials), from whatever
+        // material is on the renderer then, so instances other components assign in their Start are respected
         originalMaterials = new Material[renderers.Length];
         highlightMaterials = new Material[renderers.Length];
+        originalEmission = new Color[renderers.Length];
+    }
 
+    /// <summary>
+    /// Puts emission-enabled copies of the renderers' current materials in place.
+    /// </summary>
+    private void BeginHighlightMaterials()
+    {
         for (int i = 0; i < renderers.Length; i++)
         {
-            if (renderers[i] != null)
-            {
-                originalMaterials[i] = renderers[i].material;
-                highlightMaterials[i] = new Material(originalMaterials[i]);
+            // sharedMaterial: reading .material would create (and leak) an instance per renderer
+            if (renderers[i] == null || renderers[i].sharedMaterial == null) continue;
 
-                // Enable emission keyword
-                if (highlightMaterials[i].HasProperty(emissionProperty))
+            originalMaterials[i] = renderers[i].sharedMaterial;
+            if (highlightMaterials[i] != null)
+            {
+                Destroy(highlightMaterials[i]);
+            }
+            highlightMaterials[i] = new Material(originalMaterials[i]);
+
+            // Enable emission keyword, keeping any emission the material already had
+            originalEmission[i] = Color.black;
+            if (highlightMaterials[i].HasProperty(emissionProperty))
+            {
+                if (highlightMaterials[i].IsKeywordEnabled("_EMISSION"))
                 {
-                    highlightMaterials[i].EnableKeyword("_EMISSION");
+                    originalEmission[i] = highlightMaterials[i].GetColor(emissionProperty);
                 }
+                highlightMaterials[i].EnableKeyword("_EMISSION");
+            }
+            renderers[i].sharedMaterial = highlightMaterials[i];
+        }
+        materialsSwapped = true;
+    }
+
+    /// <summary>
+    /// Restores the materials that were on the renderers when the highlight started.
+    /// </summary>
+    private void EndHighlightMaterials()
+    {
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            // Leave a renderer alone if something else replaced our copy in the meantime
+            if (renderers[i] != null && originalMaterials[i] != null && renderers[i].sharedMaterial == highlightMaterials[i])
+            {
+                renderers[i].sharedMaterial = originalMaterials[i];
             }
         }
+        materialsSwapped = false;
     }
 
     /// <summary>
@@ -93,14 +133,24 @@ public class PropHighlight : MonoBehaviour
     /// </summary>
     private void SetupOutline()
     {
-        if (outlineMaterial == null)
+        if (outlineMaterial != null)
         {
-            // Create simple outline material
-            outlineMaterial = new Material(Shader.Find("Unlit/Color"));
-            if (outlineMaterial != null)
+            // The outline colour is animated: work on a copy, not the assigned asset
+            outlineMaterial = new Material(outlineMaterial);
+            ownsOutlineMaterial = true;
+        }
+        else
+        {
+            // Create simple outline material (the shader may be stripped from builds; assign a material instead)
+            Shader shader = Shader.Find("Unlit/Color");
+            if (shader == null)
             {
-                outlineMaterial.color = outlineColor;
+                Debug.LogWarning("[PropHighlight] No outline material assigned and 'Unlit/Color' is unavailable; outline disabled.");
+                return;
             }
+            outlineMaterial = new Material(shader);
+            outlineMaterial.color = outlineColor;
+            ownsOutlineMaterial = true;
         }
 
         // Create outline object
@@ -159,17 +209,24 @@ public class PropHighlight : MonoBehaviour
     {
         if (highlightMaterials == null) return;
 
-        Color emissionColor = highlightColor * currentIntensity;
+        // Swap materials only when the highlight starts or fully fades, not every frame
+        bool showHighlight = currentIntensity > 0.01f;
+        if (showHighlight && !materialsSwapped)
+        {
+            BeginHighlightMaterials();
+        }
+        else if (!showHighlight && materialsSwapped)
+        {
+            EndHighlightMaterials();
+        }
+
+        if (!showHighlight) return;
 
         for (int i = 0; i < renderers.Length; i++)
         {
-            if (renderers[i] != null && highlightMaterials[i] != null)
+            if (highlightMaterials[i] != null && highlightMaterials[i].HasProperty(emissionProperty))
             {
-                if (highlightMaterials[i].HasProperty(emissionProperty))
-                {
-                    highlightMaterials[i].SetColor(emissionProperty, emissionColor);
-                }
-                renderers[i].material = highlightMaterials[i];
+                highlightMaterials[i].SetColor(emissionProperty, originalEmission[i] + highlightColor * currentIntensity);
             }
         }
     }
@@ -246,6 +303,11 @@ public class PropHighlight : MonoBehaviour
     public bool IsHighlighted() => isHighlighted;
 
     /// <summary>
+    /// Whether this component drives the renderer's emission (Emission or Both mode).
+    /// </summary>
+    public bool DrivesEmission => highlightMode == HighlightMode.Emission || highlightMode == HighlightMode.Both;
+
+    /// <summary>
     /// Sets highlight color dynamically.
     /// </summary>
     public void SetHighlightColor(Color color)
@@ -259,6 +321,12 @@ public class PropHighlight : MonoBehaviour
 
     private void OnDestroy()
     {
+        // Put the original materials back before destroying the highlight copies
+        if (materialsSwapped && renderers != null && originalMaterials != null)
+        {
+            EndHighlightMaterials();
+        }
+
         // Cleanup created materials
         if (highlightMaterials != null)
         {
@@ -271,7 +339,7 @@ public class PropHighlight : MonoBehaviour
             }
         }
 
-        if (outlineMaterial != null)
+        if (ownsOutlineMaterial && outlineMaterial != null)
         {
             Destroy(outlineMaterial);
         }

@@ -44,14 +44,33 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
     private float lastInteractTime = 0f;
     private float interactCooldown = 1f;
 
+    private PropHighlight propHighlight;
+
     private void Awake()
     {
+        // Optional richer highlight effect on the same prop (it takes over emission only in emission modes)
+        propHighlight = GetComponent<PropHighlight>();
+        if (propHighlight != null)
+        {
+            propHighlight.SetHighlightColor(highlightColor);
+        }
+
         // Cache renderer
         propRenderer = GetComponent<Renderer>();
         propBlock = new MaterialPropertyBlock();
         if (propRenderer != null)
         {
             originalMaterial = propRenderer.sharedMaterial;
+        }
+
+        // The generators put the glow light on a child named "GlowLight" (other lights, e.g. candles, are left alone)
+        if (glowLight == null)
+        {
+            Transform glow = transform.Find("GlowLight");
+            if (glow != null)
+            {
+                glowLight = glow.GetComponent<Light>();
+            }
         }
 
         // Setup glow light
@@ -74,6 +93,22 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         }
         lastInteractTime = Time.time;
 
+        // Coming back to the spirit you're already talking to just reopens the chat:
+        // no new greeting (which would cancel the reply in progress) and no extra spook
+        if (LLMManager.Instance != null && LLMManager.Instance.ActiveSpirit == spiritKey)
+        {
+            // (The spirit may have become active by other means, e.g. typing before touching any prop)
+            if (LLMManager.Instance.MarkFirstSummon(spiritKey) && EventManager.Instance != null)
+            {
+                EventManager.Instance.IncrementSpook(spookIncrement);
+            }
+            if (UIChat.Instance != null)
+            {
+                UIChat.Instance.Show();
+            }
+            return;
+        }
+
         Debug.Log($"[InteractableSpirit] Interacted with {gameObject.name}, summoning {spiritKey}");
 
         // Play interaction sound
@@ -88,13 +123,10 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         }
 
         // Summon the spirit
-        if (LLMManager.Instance != null)
-        {
-            LLMManager.Instance.SummonSpirit(spiritKey);
-        }
+        bool summoned = LLMManager.Instance != null && LLMManager.Instance.SummonSpirit(spiritKey);
 
-        // Increment spook level
-        if (EventManager.Instance != null)
+        // Increment spook level the first time each spirit is called up (replies to the player raise it further)
+        if (summoned && LLMManager.Instance.MarkFirstSummon(spiritKey) && EventManager.Instance != null)
         {
             EventManager.Instance.IncrementSpook(spookIncrement);
         }
@@ -119,8 +151,9 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         Debug.Log($"[InteractableSpirit] Highlighting {gameObject.name}");
 
-        // Apply highlight via MaterialPropertyBlock (no material instance leak)
-        if (propRenderer != null)
+        // Apply highlight via MaterialPropertyBlock (no material instance leak); a PropHighlight on the
+        // prop owns the material effect instead (a property block would hide its animated emission)
+        if (propRenderer != null && (propHighlight == null || !propHighlight.DrivesEmission))
         {
             propRenderer.GetPropertyBlock(propBlock);
             propBlock.SetColor(EmissionColor, highlightColor * 0.5f);
@@ -131,6 +164,11 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         if (glowLight != null)
         {
             glowLight.enabled = true;
+        }
+
+        if (propHighlight != null)
+        {
+            propHighlight.SetHighlighted(true);
         }
     }
 
@@ -144,18 +182,21 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         Debug.Log($"[InteractableSpirit] Unhighlighting {gameObject.name}");
 
-        // Clear highlight via MaterialPropertyBlock
-        if (propRenderer != null)
+        // Clear highlight: drop the override so the material's own emission shows again
+        if (propRenderer != null && (propHighlight == null || !propHighlight.DrivesEmission))
         {
-            propRenderer.GetPropertyBlock(propBlock);
-            propBlock.SetColor(EmissionColor, Color.black);
-            propRenderer.SetPropertyBlock(propBlock);
+            propRenderer.SetPropertyBlock(null);
         }
 
         // Disable glow light
         if (glowLight != null)
         {
             glowLight.enabled = false;
+        }
+
+        if (propHighlight != null)
+        {
+            propHighlight.SetHighlighted(false);
         }
     }
 

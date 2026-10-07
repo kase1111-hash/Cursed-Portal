@@ -12,7 +12,8 @@ using TMPro;
 /// </summary>
 public class DebugUI : MonoBehaviour
 {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    // Fields stay outside the #if so the serialized layout is the same in every build
+#pragma warning disable 0414
     [Header("UI Components")]
     [SerializeField] private GameObject debugPanel;
     [SerializeField] private TMP_Text debugText;
@@ -30,7 +31,19 @@ public class DebugUI : MonoBehaviour
 
     private float lastUpdateTime = 0f;
     private bool isVisible = false;
+#pragma warning restore 0414
 
+#if !(UNITY_EDITOR || DEVELOPMENT_BUILD)
+    private void Awake()
+    {
+        // Debug tools are stripped from release builds: hide any authored panel and stop here
+        if (debugPanel != null)
+        {
+            debugPanel.SetActive(false);
+        }
+        enabled = false;
+    }
+#else
     private void Start()
     {
         // Initialize debug panel
@@ -117,6 +130,13 @@ public class DebugUI : MonoBehaviour
             debugPanel.SetActive(isVisible);
         }
 
+        // Free the cursor so the slider can be used
+        if (CursorManager.Instance != null)
+        {
+            if (isVisible) CursorManager.Instance.RequestUnlock();
+            else CursorManager.Instance.ReleaseUnlock();
+        }
+
         if (isVisible)
         {
             UpdateDebugDisplay();
@@ -186,6 +206,10 @@ public class DebugUI : MonoBehaviour
         {
             string randomSpirit = LLMManager.Instance.GetRandomSpiritKey();
             LLMManager.Instance.SummonSpirit(randomSpirit);
+            if (UIChat.Instance != null)
+            {
+                UIChat.Instance.Show(); // otherwise the reply streams into a hidden log
+            }
             Debug.Log($"[DebugUI] Summoned random spirit: {randomSpirit}");
         }
     }

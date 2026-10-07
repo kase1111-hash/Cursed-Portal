@@ -2,6 +2,7 @@
 // Source: Module M17
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Global system coordinator that orchestrates emotion, VFX, and sound per frame.
@@ -26,6 +27,14 @@ public class RitualLoop : SingletonBase<RitualLoop>
     // Target values for smooth transitions
     private float targetFogDensity = 0.01f;
     private float targetAudioVolume = 0.3f;
+
+    // The scene the ritual runs in; RitualLoop persists across scenes but only drives the parlor's fog
+    private string parlorSceneName;
+
+    private void Start()
+    {
+        parlorSceneName = SceneManager.GetActiveScene().name;
+    }
 
     private void Update()
     {
@@ -85,10 +94,12 @@ public class RitualLoop : SingletonBase<RitualLoop>
     /// </summary>
     private void UpdateSmoothTransitions()
     {
-        // Don't override fog during portal transitions or finale
+        // Don't override fog during portal transitions or anywhere in the finale scene
         if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
             return;
-        if (FinaleManager.Instance != null && FinaleManager.Instance.IsFinaleInProgress())
+        if (FinaleManager.Instance != null)
+            return;
+        if (SceneManager.GetActiveScene().name != parlorSceneName)
             return;
 
         // Smooth fog transition
@@ -204,10 +215,7 @@ public class RitualLoop : SingletonBase<RitualLoop>
         }
 
         // Update portal distortion
-        if (PortalDistort.Instance != null)
-        {
-            PortalDistort.Instance.SetEmotion(emotion);
-        }
+        PortalDistort.SetEmotionAll(emotion);
     }
 
     /// <summary>
@@ -249,8 +257,9 @@ public class RitualLoop : SingletonBase<RitualLoop>
 
     /// <summary>
     /// Resets the ritual loop to initial state.
+    /// (Not named Reset: Unity would call that in edit mode whenever the component is added.)
     /// </summary>
-    public void Reset()
+    public void ResetRitual()
     {
         currentEmotion = EmotionParser.NEUTRAL;
         emotionIntensity = 0f;

@@ -82,8 +82,11 @@ public static class EmotionParser
         int uneaseScore = CountMatches(uneasePattern, text);
         int poeScore = CountMatches(poeHorrorPattern, text);
 
+        // Same classification rule as Detect (Poe-specific terms boost terror)
+        int boostedTerror = terrorScore + poeScore / 2;
+
         string primary;
-        if (terrorScore > uneaseScore && terrorScore > 0)
+        if (boostedTerror > uneaseScore && boostedTerror > 0)
         {
             primary = TERROR;
         }

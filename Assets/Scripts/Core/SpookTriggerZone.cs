@@ -87,6 +87,8 @@ public class SpookTriggerZone : MonoBehaviour
         {
             if (triggerDelay > 0)
             {
+                // Re-entering during the delay must not queue a second trigger
+                if (IsInvoking(nameof(DelayedTrigger))) return;
                 Invoke(nameof(DelayedTrigger), triggerDelay);
             }
             else
@@ -106,6 +108,8 @@ public class SpookTriggerZone : MonoBehaviour
 
     private void DelayedTrigger()
     {
+        if (oneShot && hasTriggered) return;
+
         if (playerInside || !oneShot)
         {
             ExecuteTrigger();
@@ -126,9 +130,17 @@ public class SpookTriggerZone : MonoBehaviour
         ApplySpookEffect();
 
         // Additional effects
-        if (triggerCameraShake && CameraShake.Instance != null)
+        if (triggerCameraShake)
         {
-            CameraShake.Instance.Shake(shakeIntensity);
+            if (CameraShake.Instance != null)
+            {
+                CameraShake.Instance.Shake(shakeIntensity);
+            }
+            else if (CameraController.Instance != null)
+            {
+                // CameraController shakes in degrees; CameraShake intensity is 0-1 trauma (up to ~10 degrees)
+                CameraController.Instance.Shake(shakeIntensity * 10f);
+            }
         }
 
         if (triggerScreenFlash && ScreenEffects.Instance != null)

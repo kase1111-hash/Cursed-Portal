@@ -61,7 +61,24 @@ public class PortalSequence : SingletonBase<PortalSequence>
             return;
         }
 
+        if (!Application.CanStreamedLevelBeLoaded(targetSceneName))
+        {
+            Debug.LogError($"[PortalSequence] Scene '{targetSceneName}' is not in Build Settings. " +
+                           "Run CursedPortal > Create OtherDimension Scene (it saves and registers the scene).");
+        }
+
         Debug.Log("[PortalSequence] DIMENSION BREACH! Starting transition...");
+
+        // The conversation ends here: stop any reply still streaming in and close the chat
+        if (LLMStreamManager.Instance != null)
+        {
+            LLMStreamManager.Instance.CancelStream();
+        }
+        if (UIChat.Instance != null)
+        {
+            UIChat.Instance.SetLocked(true);
+        }
+
         StartCoroutine(BreachSequence());
     }
 
@@ -71,6 +88,12 @@ public class PortalSequence : SingletonBase<PortalSequence>
     private IEnumerator BreachSequence()
     {
         isTransitioning = true;
+
+        // Without a scene-wired fade canvas, build one now (it survives the load as our child)
+        if (fadeCanvasGroup == null)
+        {
+            EnsureFadeCanvas(0f);
+        }
 
         // Phase 1: Pre-breach effects
         yield return StartCoroutine(PreBreachPhase());
@@ -136,11 +159,15 @@ public class PortalSequence : SingletonBase<PortalSequence>
             fadeCanvasGroup.blocksRaycasts = true;
         }
 
-        // Start transition ambience
-        if (AudioManager.Instance != null && transitionAmbience != null)
+        // Fade out the parlor's whispers and ambience so they don't carry into the finale
+        if (AudioManager.Instance != null)
         {
-            // Fade out current audio
             AudioManager.Instance.FadeOutAll(transitionDuration * 0.5f);
+
+            if (transitionAmbience != null)
+            {
+                AudioManager.Instance.PlaySFX(transitionAmbience);
+            }
         }
 
         while (elapsed < transitionDuration)
@@ -204,7 +231,7 @@ public class PortalSequence : SingletonBase<PortalSequence>
         if (loadOperation == null)
         {
             Debug.LogError($"[PortalSequence] Failed to load scene: {targetSceneName}");
-            isTransitioning = false;
+            yield return StartCoroutine(RecoverFromFailedLoad());
             yield break;
         }
 
@@ -220,7 +247,7 @@ public class PortalSequence : SingletonBase<PortalSequence>
         // Rebuild a temporary fade canvas if needed.
         if (fadeCanvasGroup == null)
         {
-            EnsureFadeCanvas();
+            EnsureFadeCanvas(1f);
         }
 
         // Brief pause in darkness
@@ -233,10 +260,36 @@ public class PortalSequence : SingletonBase<PortalSequence>
     }
 
     /// <summary>
-    /// Creates a temporary fade canvas when scene-local references are lost.
-    /// This happens after async scene load since the original UI was in the old scene.
+    /// Returns to the parlor when the target scene can't be loaded, so the game isn't stuck in black.
     /// </summary>
-    private void EnsureFadeCanvas()
+    private IEnumerator RecoverFromFailedLoad()
+    {
+        if (breachOverlay != null)
+        {
+            breachOverlay.SetActive(false);
+        }
+
+        yield return StartCoroutine(FadeIn());
+
+        isTransitioning = false;
+
+        if (UIChat.Instance != null)
+        {
+            UIChat.Instance.SetLocked(false);
+        }
+
+        // Drop back below the breach so it can trigger again once the scene is fixed
+        if (EventManager.Instance != null)
+        {
+            EventManager.Instance.SetSpookLevel(4);
+        }
+    }
+
+    /// <summary>
+    /// Creates a fade canvas when none is wired in the scene, as a child of this persistent object.
+    /// </summary>
+    /// <param name="startAlpha">Initial opacity (0 before the breach, 1 when created after the load)</param>
+    private void EnsureFadeCanvas(float startAlpha)
     {
         GameObject canvasObj = new GameObject("PortalFadeCanvas");
         canvasObj.transform.SetParent(transform); // child of DontDestroyOnLoad object
@@ -246,8 +299,8 @@ public class PortalSequence : SingletonBase<PortalSequence>
         canvas.sortingOrder = 999;
 
         fadeCanvasGroup = canvasObj.AddComponent<CanvasGroup>();
-        fadeCanvasGroup.alpha = 1f; // start fully black
-        fadeCanvasGroup.blocksRaycasts = true;
+        fadeCanvasGroup.alpha = startAlpha;
+        fadeCanvasGroup.blocksRaycasts = startAlpha > 0f;
 
         GameObject imageObj = new GameObject("FadeImage");
         imageObj.transform.SetParent(canvasObj.transform, false);
@@ -259,7 +312,7 @@ public class PortalSequence : SingletonBase<PortalSequence>
         rt.offsetMax = Vector2.zero;
 
         fadeImage = imageObj.AddComponent<Image>();
-        fadeImage.color = fadeEndColor; // black
+        fadeImage.color = startAlpha > 0f ? fadeEndColor : fadeStartColor;
 
         Debug.Log("[PortalSequence] Created fallback fade canvas for scene transition");
     }
@@ -309,9 +362,30 @@ public class PortalSequence : SingletonBase<PortalSequence>
     /// </summary>
     public void SkipToScene()
     {
+        if (!Application.CanStreamedLevelBeLoaded(targetSceneName))
+        {
+            Debug.LogError($"[PortalSequence] Scene '{targetSceneName}' is not in Build Settings; can't skip to it.");
+            return;
+        }
+
         if (!isTransitioning)
         {
             Debug.Log("[PortalSequence] Debug skip to OtherDimension");
+
+            // Same cleanup as a real breach (the chat would otherwise keep the cursor unlocked)
+            if (LLMStreamManager.Instance != null)
+            {
+                LLMStreamManager.Instance.CancelStream();
+            }
+            if (UIChat.Instance != null)
+            {
+                UIChat.Instance.SetLocked(true);
+            }
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.FadeOutAll(0.1f);
+            }
+
             SceneManager.LoadScene(targetSceneName);
         }
     }

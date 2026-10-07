@@ -11,7 +11,8 @@ using UnityEngine.UI;
 /// </summary>
 public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
 {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    // Fields stay outside the #if so the serialized layout is the same in every build
+#pragma warning disable 0414
     [Header("UI References")]
     [SerializeField] private Canvas debugCanvas;
     [SerializeField] private Slider spookSlider;
@@ -27,7 +28,17 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
     // State
     private bool isVisible = false;
     private float updateTimer = 0f;
+#pragma warning restore 0414
 
+#if !(UNITY_EDITOR || DEVELOPMENT_BUILD)
+    private void Start()
+    {
+        // Debug tools are stripped from release builds: hide any authored UI and stop here
+        if (debugCanvas != null) debugCanvas.gameObject.SetActive(false);
+        if (debugPanel != null) debugPanel.SetActive(false);
+        enabled = false;
+    }
+#else
     private void Start()
     {
         // Create UI if not assigned
@@ -82,7 +93,7 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
     {
         // Create canvas
         GameObject canvasObj = new GameObject("DebugCanvas");
-        canvasObj.transform.SetParent(transform);
+        canvasObj.transform.SetParent(transform, false);
 
         debugCanvas = canvasObj.AddComponent<Canvas>();
         debugCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -93,7 +104,7 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
 
         // Create panel
         debugPanel = new GameObject("DebugPanel");
-        debugPanel.transform.SetParent(canvasObj.transform);
+        debugPanel.transform.SetParent(canvasObj.transform, false);
 
         Image panelImage = debugPanel.AddComponent<Image>();
         panelImage.color = new Color(0f, 0f, 0f, 0.8f);
@@ -145,7 +156,7 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
     private GameObject CreateTextElement(Transform parent, string content, int fontSize, TextAnchor anchor)
     {
         GameObject textObj = new GameObject("Text");
-        textObj.transform.SetParent(parent);
+        textObj.transform.SetParent(parent, false);
 
         Text text = textObj.AddComponent<Text>();
         text.text = content;
@@ -168,21 +179,24 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
     /// </summary>
     private GameObject CreateSlider(Transform parent)
     {
-        GameObject sliderObj = new GameObject("SpookSlider");
-        sliderObj.transform.SetParent(parent);
+        GameObject sliderObj = new GameObject("SpookSlider", typeof(RectTransform));
+        sliderObj.transform.SetParent(parent, false);
 
         spookSlider = sliderObj.AddComponent<Slider>();
         spookSlider.minValue = 0;
         spookSlider.maxValue = 5;
         spookSlider.wholeNumbers = true;
 
-        RectTransform sliderRect = sliderObj.AddComponent<RectTransform>();
+        // The Slider already required a RectTransform; adding another would return null
+        RectTransform sliderRect = sliderObj.GetComponent<RectTransform>();
         sliderRect.anchorMin = Vector2.zero;
         sliderRect.anchorMax = Vector2.one;
+        sliderRect.offsetMin = Vector2.zero;
+        sliderRect.offsetMax = Vector2.zero;
 
         // Background
         GameObject bgObj = new GameObject("Background");
-        bgObj.transform.SetParent(sliderObj.transform);
+        bgObj.transform.SetParent(sliderObj.transform, false);
         Image bgImage = bgObj.AddComponent<Image>();
         bgImage.color = new Color(0.2f, 0.2f, 0.2f);
         RectTransform bgRect = bgObj.GetComponent<RectTransform>();
@@ -193,7 +207,7 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
 
         // Fill area
         GameObject fillAreaObj = new GameObject("FillArea");
-        fillAreaObj.transform.SetParent(sliderObj.transform);
+        fillAreaObj.transform.SetParent(sliderObj.transform, false);
         RectTransform fillAreaRect = fillAreaObj.AddComponent<RectTransform>();
         fillAreaRect.anchorMin = new Vector2(0f, 0.4f);
         fillAreaRect.anchorMax = new Vector2(1f, 0.6f);
@@ -201,7 +215,7 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
         fillAreaRect.offsetMax = Vector2.zero;
 
         GameObject fillObj = new GameObject("Fill");
-        fillObj.transform.SetParent(fillAreaObj.transform);
+        fillObj.transform.SetParent(fillAreaObj.transform, false);
         Image fillImage = fillObj.AddComponent<Image>();
         fillImage.color = new Color(0.8f, 0.3f, 0.3f);
         RectTransform fillRect = fillObj.GetComponent<RectTransform>();
@@ -214,7 +228,7 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
 
         // Handle
         GameObject handleAreaObj = new GameObject("HandleSlideArea");
-        handleAreaObj.transform.SetParent(sliderObj.transform);
+        handleAreaObj.transform.SetParent(sliderObj.transform, false);
         RectTransform handleAreaRect = handleAreaObj.AddComponent<RectTransform>();
         handleAreaRect.anchorMin = Vector2.zero;
         handleAreaRect.anchorMax = Vector2.one;
@@ -222,11 +236,12 @@ public class SpookLevelDebugUI : SceneSingletonBase<SpookLevelDebugUI>
         handleAreaRect.offsetMax = Vector2.zero;
 
         GameObject handleObj = new GameObject("Handle");
-        handleObj.transform.SetParent(handleAreaObj.transform);
+        handleObj.transform.SetParent(handleAreaObj.transform, false);
         Image handleImage = handleObj.AddComponent<Image>();
         handleImage.color = Color.white;
         RectTransform handleRect = handleObj.GetComponent<RectTransform>();
         handleRect.sizeDelta = new Vector2(20f, 20f);
+        handleRect.anchoredPosition = Vector2.zero;
 
         spookSlider.handleRect = handleRect;
         spookSlider.targetGraphic = handleImage;

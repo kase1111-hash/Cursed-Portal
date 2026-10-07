@@ -18,8 +18,6 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
 
     [Header("Gravity")]
     [SerializeField] private float gravity = -9.81f;
-    [SerializeField] private float groundCheckDistance = 0.2f;
-    [SerializeField] private LayerMask groundMask = ~0;
 
     [Header("Input Keys")]
     [SerializeField] private KeyCode sprintKey = KeyCode.LeftShift;
@@ -72,11 +70,8 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
     /// </summary>
     private void CheckGround()
     {
-        isGrounded = Physics.CheckSphere(
-            transform.position + Vector3.down * (controller.height / 2f),
-            groundCheckDistance,
-            groundMask
-        );
+        // The controller's own result from the last Move; a sphere check here would hit the player's own capsule
+        isGrounded = controller.isGrounded;
 
         // Reset vertical velocity when grounded
         if (isGrounded && velocity.y < 0)
@@ -90,8 +85,9 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
     /// </summary>
     private void HandleInput()
     {
-        // Don't process movement input if chat is open
-        if (UIChat.Instance != null && UIChat.Instance.IsVisible())
+        // Don't process movement input if chat is open or the portal is taking the player
+        if ((UIChat.Instance != null && UIChat.Instance.IsVisible()) ||
+            (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning()))
         {
             horizontalInput = 0f;
             verticalInput = 0f;
@@ -133,8 +129,8 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
             currentMovement = Vector3.Lerp(currentMovement, Vector3.zero, deceleration * Time.deltaTime);
         }
 
-        // Apply movement
-        controller.Move(currentMovement * Time.deltaTime);
+        // Applied together with gravity in ApplyGravity: one Move per frame keeps
+        // controller.velocity (IsMoving) and controller.isGrounded meaningful
     }
 
     /// <summary>
@@ -143,7 +139,7 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
     private void ApplyGravity()
     {
         velocity.y += gravity * Time.deltaTime;
-        controller.Move(velocity * Time.deltaTime);
+        controller.Move((currentMovement + new Vector3(0f, velocity.y, 0f)) * Time.deltaTime);
     }
 
     /// <summary>
@@ -182,7 +178,11 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
     /// </summary>
     public bool IsMoving()
     {
-        return currentMovement.magnitude > 0.1f;
+        // Actual velocity after collisions (walking into a wall is not moving); stale while movement is off
+        if (!canMove || !isActiveAndEnabled) return false;
+        Vector3 horizontal = controller != null ? controller.velocity : Vector3.zero;
+        horizontal.y = 0f;
+        return horizontal.magnitude > 0.1f;
     }
 
     /// <summary>
@@ -195,14 +195,13 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
 
     private void OnDrawGizmosSelected()
     {
-        // Draw ground check sphere
+        // Draw the feet position, colored by grounded state
         Gizmos.color = isGrounded ? Color.green : Color.red;
-        if (controller != null)
+        CharacterController cc = controller != null ? controller : GetComponent<CharacterController>();
+        if (cc != null)
         {
-            Gizmos.DrawWireSphere(
-                transform.position + Vector3.down * (controller.height / 2f),
-                groundCheckDistance
-            );
+            Vector3 feet = transform.TransformPoint(cc.center) + Vector3.down * (cc.height / 2f);
+            Gizmos.DrawWireSphere(feet, cc.radius);
         }
     }
 }

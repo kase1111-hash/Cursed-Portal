@@ -49,9 +49,9 @@ public class SpiritMemory
     /// <param name="spiritResponse">The spirit's response</param>
     public void AddExchange(string userPrompt, string spiritResponse)
     {
-        // Convert to lists for easier manipulation
-        List<string> prompts = new List<string>(lastPrompts);
-        List<string> responses = new List<string>(lastResponses);
+        // Convert to lists for easier manipulation (arrays are null if missing from a saved file)
+        List<string> prompts = new List<string>(lastPrompts ?? new string[0]);
+        List<string> responses = new List<string>(lastResponses ?? new string[0]);
 
         // Add new exchange
         prompts.Add(userPrompt);
@@ -137,8 +137,18 @@ public class SpiritMemory
                 Directory.CreateDirectory(directory);
             }
 
+            // Write to a temp file first so a crash mid-write can't wipe the existing memory
             string json = JsonUtility.ToJson(memory, true);
-            File.WriteAllText(path, json);
+            string tempPath = path + ".tmp";
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(path))
+            {
+                File.Replace(tempPath, path, null);
+            }
+            else
+            {
+                File.Move(tempPath, path);
+            }
 
             Debug.Log($"[SpiritMemory] Saved memory for {memory.spiritName} ({memory.totalInteractions} interactions)");
         }
@@ -169,6 +179,14 @@ public class SpiritMemory
             {
                 string json = File.ReadAllText(path);
                 SpiritMemory memory = JsonUtility.FromJson<SpiritMemory>(json);
+                if (memory == null)
+                {
+                    return new SpiritMemory(spiritName);
+                }
+                if (string.IsNullOrEmpty(memory.spiritName))
+                {
+                    memory.spiritName = spiritName;
+                }
 
                 Debug.Log($"[SpiritMemory] Loaded memory for {spiritName} ({memory.totalInteractions} interactions)");
                 return memory;

@@ -52,7 +52,8 @@ public class InteractionManager : SceneSingletonBase<InteractionManager>
     {
         Ray ray = mainCamera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f, 0f));
 
-        if (Physics.Raycast(ray, out RaycastHit hit, interactionRange, interactableMask))
+        // Ignore trigger volumes (e.g. SpookTriggerZone) so they don't hide the props inside them
+        if (Physics.Raycast(ray, out RaycastHit hit, interactionRange, interactableMask, QueryTriggerInteraction.Ignore))
         {
             // Try to get IInteractable from hit object or its parents (handles child colliders)
             IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
@@ -99,6 +100,10 @@ public class InteractionManager : SceneSingletonBase<InteractionManager>
     /// </summary>
     private void HandleInput()
     {
+        // Typing in the chat (or a running portal transition) must not trigger the prop behind it
+        if (UIChat.Instance != null && UIChat.Instance.IsVisible()) return;
+        if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning()) return;
+
         if (currentTarget != null && Input.GetKeyDown(interactKey))
         {
             currentTarget.OnInteract();

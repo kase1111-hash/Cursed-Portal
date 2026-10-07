@@ -73,6 +73,14 @@ public class HeartbeatEffect : SceneSingletonBase<HeartbeatEffect>
 
     private void Update()
     {
+        // Fade the visual pulse even while inactive (ForceBeat can pulse below the activation level)
+        if (useVisualPulse && vignetteOverlay != null)
+        {
+            Color current = vignetteOverlay.color;
+            current.a = Mathf.Lerp(current.a, 0f, 5f * Time.deltaTime);
+            vignetteOverlay.color = current;
+        }
+
         if (!isActive) return;
 
         beatTimer += Time.deltaTime;
@@ -81,14 +89,6 @@ public class HeartbeatEffect : SceneSingletonBase<HeartbeatEffect>
         {
             beatTimer = 0f;
             TriggerBeat();
-        }
-
-        // Update visual pulse decay
-        if (useVisualPulse && vignetteOverlay != null)
-        {
-            Color current = vignetteOverlay.color;
-            current.a = Mathf.Lerp(current.a, 0f, 5f * Time.deltaTime);
-            vignetteOverlay.color = current;
         }
     }
 

@@ -44,8 +44,26 @@ public class MirrorProp : MonoBehaviour, IInteractable
 
     private void Start()
     {
+        // Always work on our own instance: editing an assigned asset would change it on disk (in the
+        // editor) and destroying it in OnDestroy would delete a project asset
         mirrorRenderer = GetComponent<Renderer>();
-        if (mirrorRenderer != null && mirrorMaterial == null)
+        if (mirrorMaterial != null)
+        {
+            // Swap a private copy into whichever renderer slots (here or in children, e.g. the glass) use it
+            Material copy = MaterialInstanceUtil.InstantiateWhereUsed(this, mirrorMaterial);
+            if (copy == null && mirrorRenderer != null)
+            {
+                // Not on any renderer yet: put a copy on this one (the field names the mirror's glass material)
+                copy = new Material(mirrorMaterial);
+                mirrorRenderer.material = copy;
+            }
+            else if (copy == null)
+            {
+                Debug.LogWarning($"[MirrorProp] {mirrorMaterial.name} isn't used by any renderer on {name} or its children; glitches won't show.");
+            }
+            mirrorMaterial = copy;
+        }
+        else if (mirrorRenderer != null)
         {
             mirrorMaterial = mirrorRenderer.material;
         }
@@ -75,6 +93,13 @@ public class MirrorProp : MonoBehaviour, IInteractable
     private void UpdateGazeDetection()
     {
         if (!useGazeDetection || hasTriggeredGaze) return;
+
+        // The camera is frozen on the mirror while chatting with the Narrator; that isn't staring
+        if (UIChat.Instance != null && UIChat.Instance.IsVisible())
+        {
+            gazeTimer = Mathf.Max(0f, gazeTimer - Time.deltaTime);
+            return;
+        }
 
         // Check if camera is looking at mirror
         if (Camera.main != null)

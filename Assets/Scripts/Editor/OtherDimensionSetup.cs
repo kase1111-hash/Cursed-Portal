@@ -2,283 +2,226 @@
 // Source: Module M18-M24 - OtherDimension Scene Setup
 
 #if UNITY_EDITOR
+using TMPro;
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.UI;
 
 /// <summary>
-/// Editor tool to generate the OtherDimension finale scene.
-/// Creates platform, spirit core, lighting, and UI elements.
+/// Generates the OtherDimension finale scene and saves it as Assets/Scenes/OtherDimension.unity
+/// (registered in Build Settings): platform, spirit core, player camera, FinaleManager and the epilogue UI.
+/// The persistent managers arrive from the parlor, so none are placed here (duplicates would destroy
+/// whatever shares their GameObject). Played on its own, the finale shows the fallback epilogue.
+/// Menu: CursedPortal > Create OtherDimension Scene
 /// </summary>
-public class OtherDimensionSetup : Editor
+public static class OtherDimensionSetup
 {
-    [MenuItem("CursedPortal/Create OtherDimension Scene")]
+    private const string FinaleProfilePath = "Assets/Settings/OtherDimension_VolumeProfile.asset";
+    private static readonly Vector3 SpawnPosition = new Vector3(0f, 1.48f, -3f); // standing on the platform top (y 0.5)
+
+    [MenuItem("CursedPortal/Create OtherDimension Scene", false, 101)]
     public static void CreateOtherDimensionScene()
     {
+        if (!CursedPortalEditorUtil.EnsureTMPResources()) return;
+        if (!CursedPortalEditorUtil.BeginNewScene(CursedPortalEditorUtil.FinaleScenePath)) return;
+
+        SetupURP.EnsurePipelineAssigned();
+
         Debug.Log("[OtherDimensionSetup] Creating OtherDimension scene...");
 
-        // Create root container
-        GameObject root = new GameObject("OtherDimension");
+        Transform playerSpawn = CreatePlayerSpawn();
+        CreatePlayerRig();
+        CreatePlatform();
+        DimensionalLight spiritCore = CreateSpiritCore(out EpilogueNarrator narrator);
+        CreateEnvironment();
+        CreateLighting();
+        CreatePostProcessing();
+        UIEpilogue epilogueUI = CreateUIElements();
+        SceneSetup.CreateScreenEffects(false);
+        CursedPortalEditorUtil.CreateEventSystem();
+        CreateFinaleManager(narrator, epilogueUI, spiritCore, playerSpawn);
 
-        // Create PlayerRig spawn point
-        CreatePlayerSpawn(root.transform);
+        if (!CursedPortalEditorUtil.SaveSceneAndRegister(CursedPortalEditorUtil.FinaleScenePath)) return;
 
-        // Create floating platform
-        CreatePlatform(root.transform);
-
-        // Create spirit core (central glowing sphere)
-        CreateSpiritCore(root.transform);
-
-        // Create environment (mist, skybox elements)
-        CreateEnvironment(root.transform);
-
-        // Create UI elements
-        CreateUIElements(root.transform);
-
-        // Create lighting
-        CreateLighting(root.transform);
-
-        // Create post-processing volume
-        CreatePostProcessing(root.transform);
-
-        // Select the root object
-        Selection.activeGameObject = root;
-
-        Debug.Log("[OtherDimensionSetup] OtherDimension scene created successfully!");
-        Debug.Log("[OtherDimensionSetup] Remember to save as 'OtherDimension.unity' in Assets/Scenes/");
+        string message = $"Saved {CursedPortalEditorUtil.FinaleScenePath} and added it to Build Settings.\n\n" +
+                         "Play from the CursedPortal scene: the portal brings you here at spook level 5.";
+        Debug.Log("[OtherDimensionSetup] " + message);
+        if (!Application.isBatchMode)
+        {
+            EditorUtility.DisplayDialog("OtherDimension Setup", message, "OK");
+        }
     }
 
-    private static void CreatePlayerSpawn(Transform parent)
+    private static Transform CreatePlayerSpawn()
     {
         GameObject playerSpawn = new GameObject("PlayerSpawn");
-        playerSpawn.transform.SetParent(parent);
-        playerSpawn.transform.position = new Vector3(0f, 1.8f, 0f);
+        playerSpawn.transform.SetPositionAndRotation(SpawnPosition, Quaternion.identity); // facing the spirit core (+Z)
         playerSpawn.AddComponent<PlayerSpawnMarker>();
         Debug.Log("[OtherDimensionSetup] Created PlayerSpawn");
+        return playerSpawn.transform;
     }
 
-    private static void CreatePlatform(Transform parent)
+    /// <summary>
+    /// A look-only player (no movement, so nobody walks off the floating platform), authored at the
+    /// spawn pose because CameraController caches its yaw in Start.
+    /// </summary>
+    private static void CreatePlayerRig()
+    {
+        GameObject playerRig = new GameObject("PlayerRig");
+        playerRig.tag = "Player";
+        playerRig.transform.SetPositionAndRotation(SpawnPosition, Quaternion.identity);
+
+        Camera cam = SceneSetup.CreateCameraRig(playerRig.transform);
+        cam.backgroundColor = new Color(0.02f, 0.01f, 0.04f);
+        Debug.Log("[OtherDimensionSetup] Created PlayerRig");
+    }
+
+    private static void CreatePlatform()
     {
         GameObject platform = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         platform.name = "Platform";
-        platform.transform.SetParent(parent);
         platform.transform.position = Vector3.zero;
         platform.transform.localScale = new Vector3(10f, 0.5f, 10f);
+        platform.GetComponent<Renderer>().sharedMaterial =
+            SceneSetup.CreateLitMaterial("Platform", new Color(0.2f, 0.15f, 0.25f), 0.7f, false);
 
-        Renderer renderer = platform.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            mat.color = new Color(0.2f, 0.15f, 0.25f);
-            mat.SetFloat("_Smoothness", 0.7f);
-            renderer.material = mat;
-        }
+        // The primitive's CapsuleCollider would become a 5 m sphere under this scale; use the real shape
+        Object.DestroyImmediate(platform.GetComponent<Collider>());
+        platform.AddComponent<MeshCollider>();
 
-        // Edge glow ring
-        GameObject edgeGlow = GameObject.CreatePrimitive(PrimitiveType.Torus);
+        // Edge glow ring (Unity has no torus primitive; a slightly wider, thin cylinder reads as a glowing rim)
+        GameObject edgeGlow = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         edgeGlow.name = "EdgeGlow";
-        edgeGlow.transform.SetParent(platform.transform);
+        edgeGlow.transform.SetParent(platform.transform, false);
         edgeGlow.transform.localPosition = new Vector3(0f, 0.6f, 0f);
         edgeGlow.transform.localScale = new Vector3(1.05f, 0.1f, 1.05f);
+        edgeGlow.GetComponent<Renderer>().sharedMaterial =
+            SceneSetup.CreateUnlitMaterial("EdgeGlow", new Color(0.5f, 0.2f, 0.8f));
+        Object.DestroyImmediate(edgeGlow.GetComponent<Collider>());
 
-        Renderer glowRenderer = edgeGlow.GetComponent<Renderer>();
-        if (glowRenderer != null)
-        {
-            Material glowMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-            glowMat.color = new Color(0.5f, 0.2f, 0.8f);
-            glowMat.EnableKeyword("_EMISSION");
-            glowMat.SetColor("_EmissionColor", new Color(0.5f, 0.2f, 0.8f) * 2f);
-            glowRenderer.material = glowMat;
-        }
-
-        DestroyImmediate(edgeGlow.GetComponent<Collider>());
         Debug.Log("[OtherDimensionSetup] Created Platform");
     }
 
-    private static void CreateSpiritCore(Transform parent)
+    private static DimensionalLight CreateSpiritCore(out EpilogueNarrator narrator)
     {
         GameObject spiritCore = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         spiritCore.name = "SpiritCore";
-        spiritCore.transform.SetParent(parent);
         spiritCore.transform.position = new Vector3(0f, 3f, 2f);
         spiritCore.transform.localScale = Vector3.one * 0.8f;
-
-        DestroyImmediate(spiritCore.GetComponent<Collider>());
-
-        Renderer renderer = spiritCore.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-            mat.color = new Color(0.8f, 0.4f, 1f);
-            mat.EnableKeyword("_EMISSION");
-            mat.SetColor("_EmissionColor", new Color(0.8f, 0.4f, 1f) * 3f);
-            renderer.material = mat;
-        }
-
-        spiritCore.AddComponent<DimensionalLight>();
-        spiritCore.AddComponent<EpilogueNarrator>();
+        spiritCore.GetComponent<Renderer>().sharedMaterial =
+            SceneSetup.CreateUnlitMaterial("SpiritCore", new Color(0.8f, 0.4f, 1f));
+        Object.DestroyImmediate(spiritCore.GetComponent<Collider>());
 
         GameObject coreLight = new GameObject("CoreLight");
-        coreLight.transform.SetParent(spiritCore.transform);
-        coreLight.transform.localPosition = Vector3.zero;
+        coreLight.transform.SetParent(spiritCore.transform, false);
         Light light = coreLight.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = new Color(0.8f, 0.4f, 1f);
         light.intensity = 3f;
         light.range = 15f;
 
+        DimensionalLight dimensional = spiritCore.AddComponent<DimensionalLight>();
+        CursedPortalEditorUtil.SetRef(dimensional, "targetLight", light);
+        SerializedObject so = new SerializedObject(dimensional);
+        so.FindProperty("baseIntensity").floatValue = 3f; // DimensionalLight drives the light from these
+        so.FindProperty("baseRange").floatValue = 15f;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        narrator = spiritCore.AddComponent<EpilogueNarrator>();
+        CursedPortalEditorUtil.SetRef(narrator, "spiritLight", dimensional);
+
         CreateOrbits(spiritCore.transform);
         Debug.Log("[OtherDimensionSetup] Created SpiritCore");
+        return dimensional;
     }
 
     private static void CreateOrbits(Transform parent)
     {
+        Color[] colors = { new Color(1f, 0.3f, 0.3f), new Color(0.3f, 0.3f, 1f), new Color(0.3f, 1f, 0.5f) };
         for (int i = 0; i < 3; i++)
         {
             GameObject wisp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             wisp.name = $"Wisp_{i}";
-            wisp.transform.SetParent(parent);
+            wisp.transform.SetParent(parent, false);
             wisp.transform.localScale = Vector3.one * 0.15f;
 
             float angle = i * 120f * Mathf.Deg2Rad;
             wisp.transform.localPosition = new Vector3(Mathf.Cos(angle) * 1.5f, 0f, Mathf.Sin(angle) * 1.5f);
 
-            DestroyImmediate(wisp.GetComponent<Collider>());
-
-            Renderer renderer = wisp.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                Color wispColor = i switch
-                {
-                    0 => new Color(1f, 0.3f, 0.3f),
-                    1 => new Color(0.3f, 0.3f, 1f),
-                    _ => new Color(0.3f, 1f, 0.5f)
-                };
-
-                Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-                mat.color = wispColor;
-                mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", wispColor * 2f);
-                renderer.material = mat;
-            }
-
+            Object.DestroyImmediate(wisp.GetComponent<Collider>());
+            wisp.GetComponent<Renderer>().sharedMaterial = SceneSetup.CreateUnlitMaterial($"Wisp_{i}", colors[i]);
             wisp.AddComponent<OrbitalMotion>();
         }
     }
 
-    private static void CreateEnvironment(Transform parent)
+    private static void CreateEnvironment()
     {
         GameObject environment = new GameObject("Environment");
-        environment.transform.SetParent(parent);
+        Material particleMat = SceneSetup.ParticleMaterial();
 
-        GameObject mistObj = new GameObject("MistParticles");
-        mistObj.transform.SetParent(environment.transform);
-        mistObj.transform.position = new Vector3(0f, 0.5f, 0f);
+        ParticleSystem mist = SceneSetup.CreateParticles(environment.transform, "MistParticles", new Vector3(0f, 0.5f, 0f),
+            particleMat, lifetime: 8f, speed: 0.2f, size: 3f, color: new Color(0.3f, 0.2f, 0.4f, 0.3f),
+            maxParticles: 100, rate: 10f, playOnAwake: true);
+        ParticleSystem.ShapeModule mistShape = mist.shape;
+        mistShape.shapeType = ParticleSystemShapeType.Circle;
+        mistShape.radius = 8f;
+        mistShape.rotation = new Vector3(-90f, 0f, 0f); // circle in the horizontal plane
 
-        ParticleSystem mist = mistObj.AddComponent<ParticleSystem>();
-        var main = mist.main;
-        main.startLifetime = 8f;
-        main.startSpeed = 0.2f;
-        main.startSize = 3f;
-        main.startColor = new Color(0.3f, 0.2f, 0.4f, 0.3f);
-        main.maxParticles = 100;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-
-        var emission = mist.emission;
-        emission.rateOverTime = 10f;
-
-        var shape = mist.shape;
-        shape.shapeType = ParticleSystemShapeType.Circle;
-        shape.radius = 8f;
-
-        GameObject voidObj = new GameObject("VoidParticles");
-        voidObj.transform.SetParent(environment.transform);
-        voidObj.transform.position = new Vector3(0f, 10f, 0f);
-
-        ParticleSystem voidParticles = voidObj.AddComponent<ParticleSystem>();
-        var voidMain = voidParticles.main;
-        voidMain.startLifetime = 10f;
-        voidMain.startSpeed = 0.5f;
-        voidMain.startSize = 0.1f;
-        voidMain.startColor = new Color(0.8f, 0.5f, 1f, 0.5f);
-        voidMain.maxParticles = 200;
+        ParticleSystem voidParticles = SceneSetup.CreateParticles(environment.transform, "VoidParticles", new Vector3(0f, 10f, 0f),
+            particleMat, lifetime: 10f, speed: 0.5f, size: 0.1f, color: new Color(0.8f, 0.5f, 1f, 0.5f),
+            maxParticles: 200, rate: 20f, playOnAwake: true);
+        ParticleSystem.MainModule voidMain = voidParticles.main;
         voidMain.gravityModifier = 0.1f;
-
-        var voidEmission = voidParticles.emission;
-        voidEmission.rateOverTime = 20f;
-
-        var voidShape = voidParticles.shape;
+        ParticleSystem.ShapeModule voidShape = voidParticles.shape;
         voidShape.shapeType = ParticleSystemShapeType.Box;
         voidShape.scale = new Vector3(15f, 1f, 15f);
 
         Debug.Log("[OtherDimensionSetup] Created Environment");
     }
 
-    private static void CreateUIElements(Transform parent)
+    /// <summary>
+    /// Epilogue panel (TMP text, CanvasGroup, background) and the awaken prompt, wired to UIEpilogue.
+    /// </summary>
+    private static UIEpilogue CreateUIElements()
     {
-        GameObject canvasObj = new GameObject("UIEpilogueCanvas");
-        canvasObj.transform.SetParent(parent);
+        // Above ScreenEffects so the final message stays readable over the fade to white
+        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("UIEpilogueCanvas", 100);
+        UIEpilogue epilogue = canvas.gameObject.AddComponent<UIEpilogue>();
 
-        Canvas canvas = canvasObj.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 100;
+        RectTransform panel = CursedPortalEditorUtil.CreateRect("EpiloguePanel", canvas.transform,
+            new Vector2(0.1f, 0.1f), new Vector2(0.9f, 0.4f));
+        Image background = panel.gameObject.AddComponent<Image>();
+        background.color = new Color(0f, 0f, 0f, 0.7f);
+        background.raycastTarget = false;
+        CanvasGroup group = panel.gameObject.AddComponent<CanvasGroup>();
+        group.alpha = 0f;
 
-        canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
-        canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-        canvasObj.AddComponent<UIEpilogue>();
+        TextMeshProUGUI text = CursedPortalEditorUtil.CreateText("EpilogueText", panel, "", 30f,
+            TextAlignmentOptions.Center, new Color(0.9f, 0.8f, 1f), Vector2.zero, Vector2.one);
+        text.margin = new Vector4(30f, 20f, 30f, 20f);
+        // An LLM epilogue plus the closing quote can run to ~11 lines; shrink rather than spill out of the panel
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 18f;
+        text.fontSizeMax = 30f;
 
-        GameObject panel = new GameObject("TextPanel");
-        panel.transform.SetParent(canvasObj.transform);
+        // Outside the panel's CanvasGroup so it can show while the panel is faded
+        TextMeshProUGUI prompt = CursedPortalEditorUtil.CreateText("PromptText", canvas.transform, "[E] to Awaken", 26f,
+            TextAlignmentOptions.Center, new Color(0.7f, 0.7f, 0.9f), new Vector2(0.3f, 0.03f), new Vector2(0.7f, 0.09f));
 
-        UnityEngine.UI.Image panelImage = panel.AddComponent<UnityEngine.UI.Image>();
-        panelImage.color = new Color(0f, 0f, 0f, 0.7f);
-
-        RectTransform panelRect = panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0.1f, 0.1f);
-        panelRect.anchorMax = new Vector2(0.9f, 0.4f);
-        panelRect.offsetMin = Vector2.zero;
-        panelRect.offsetMax = Vector2.zero;
-
-        GameObject textObj = new GameObject("EpilogueText");
-        textObj.transform.SetParent(panel.transform);
-
-        UnityEngine.UI.Text text = textObj.AddComponent<UnityEngine.UI.Text>();
-        text.text = "";
-        text.fontSize = 24;
-        text.color = new Color(0.9f, 0.8f, 1f);
-        text.alignment = TextAnchor.MiddleCenter;
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
-        RectTransform textRect = textObj.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(20f, 20f);
-        textRect.offsetMax = new Vector2(-20f, -20f);
-
-        GameObject promptObj = new GameObject("PromptText");
-        promptObj.transform.SetParent(canvasObj.transform);
-
-        UnityEngine.UI.Text prompt = promptObj.AddComponent<UnityEngine.UI.Text>();
-        prompt.text = "[E] to Awaken";
-        prompt.fontSize = 18;
-        prompt.color = new Color(0.7f, 0.7f, 0.9f, 0f);
-        prompt.alignment = TextAnchor.MiddleCenter;
-        prompt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
-        RectTransform promptRect = promptObj.GetComponent<RectTransform>();
-        promptRect.anchorMin = new Vector2(0.3f, 0.05f);
-        promptRect.anchorMax = new Vector2(0.7f, 0.1f);
-        promptRect.offsetMin = Vector2.zero;
-        promptRect.offsetMax = Vector2.zero;
+        CursedPortalEditorUtil.SetRef(epilogue, "epilogueText", text);
+        CursedPortalEditorUtil.SetRef(epilogue, "promptText", prompt);
+        CursedPortalEditorUtil.SetRef(epilogue, "canvasGroup", group);
+        CursedPortalEditorUtil.SetRef(epilogue, "backgroundImage", background);
 
         Debug.Log("[OtherDimensionSetup] Created UI Elements");
+        return epilogue;
     }
 
-    private static void CreateLighting(Transform parent)
+    private static void CreateLighting()
     {
         GameObject lighting = new GameObject("Lighting");
-        lighting.transform.SetParent(parent);
 
         GameObject dirLightObj = new GameObject("DirectionalLight");
         dirLightObj.transform.SetParent(lighting.transform);
@@ -305,7 +248,8 @@ public class OtherDimensionSetup : Editor
             rimLight.range = 10f;
         }
 
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.skybox = null;
+        RenderSettings.ambientMode = AmbientMode.Flat;
         RenderSettings.ambientLight = new Color(0.1f, 0.05f, 0.15f);
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Exponential;
@@ -315,34 +259,61 @@ public class OtherDimensionSetup : Editor
         Debug.Log("[OtherDimensionSetup] Created Lighting");
     }
 
-    private static void CreatePostProcessing(Transform parent)
+    private static void CreatePostProcessing()
     {
         GameObject ppVolume = new GameObject("PostProcessVolume");
-        ppVolume.transform.SetParent(parent);
 
         Volume volume = ppVolume.AddComponent<Volume>();
         volume.isGlobal = true;
         volume.priority = 1f;
 
-        VolumeProfile profile = ScriptableObject.CreateInstance<VolumeProfile>();
+        // A saved profile asset assigned as sharedProfile; Volume.profile is a runtime copy that isn't saved
+        VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(FinaleProfilePath);
+        if (profile == null)
+        {
+            CursedPortalEditorUtil.EnsureFolder("Assets/Settings");
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            AssetDatabase.CreateAsset(profile, FinaleProfilePath);
 
-        Vignette vignette = profile.Add<Vignette>();
-        vignette.intensity.Override(0.5f);
-        vignette.color.Override(new Color(0.2f, 0f, 0.3f));
+            Vignette vignette = SceneSetup.AddProfileComponent<Vignette>(profile);
+            vignette.intensity.Override(0.5f);
+            vignette.color.Override(new Color(0.2f, 0f, 0.3f));
 
-        ColorAdjustments colorAdj = profile.Add<ColorAdjustments>();
-        colorAdj.saturation.Override(-30f);
-        colorAdj.contrast.Override(20f);
-        colorAdj.colorFilter.Override(new Color(0.8f, 0.7f, 1f));
+            ColorAdjustments colorAdj = SceneSetup.AddProfileComponent<ColorAdjustments>(profile);
+            colorAdj.saturation.Override(-30f);
+            colorAdj.contrast.Override(20f);
+            colorAdj.colorFilter.Override(new Color(0.8f, 0.7f, 1f));
 
-        Bloom bloom = profile.Add<Bloom>();
-        bloom.threshold.Override(0.8f);
-        bloom.intensity.Override(2f);
-        bloom.tint.Override(new Color(0.8f, 0.5f, 1f));
+            Bloom bloom = SceneSetup.AddProfileComponent<Bloom>(profile);
+            bloom.threshold.Override(0.8f);
+            bloom.intensity.Override(2f);
+            bloom.tint.Override(new Color(0.8f, 0.5f, 1f));
 
-        volume.profile = profile;
+            EditorUtility.SetDirty(profile);
+            AssetDatabase.SaveAssets();
+        }
+        volume.sharedProfile = profile;
 
         Debug.Log("[OtherDimensionSetup] Created Post-Processing Volume");
+    }
+
+    private static void CreateFinaleManager(EpilogueNarrator narrator, UIEpilogue epilogueUI,
+        DimensionalLight spiritCore, Transform playerSpawn)
+    {
+        GameObject finaleObj = new GameObject("FinaleManager");
+        AudioSource ambient = finaleObj.AddComponent<AudioSource>();
+        ambient.loop = true;
+        ambient.playOnAwake = false;
+        ambient.spatialBlend = 0f;
+
+        FinaleManager finale = finaleObj.AddComponent<FinaleManager>();
+        CursedPortalEditorUtil.SetRef(finale, "epilogueNarrator", narrator);
+        CursedPortalEditorUtil.SetRef(finale, "uiEpilogue", epilogueUI);
+        CursedPortalEditorUtil.SetRef(finale, "spiritCore", spiritCore);
+        CursedPortalEditorUtil.SetRef(finale, "playerSpawn", playerSpawn);
+        CursedPortalEditorUtil.SetRef(finale, "ambientSource", ambient);
+
+        Debug.Log("[OtherDimensionSetup] Created FinaleManager");
     }
 }
 #endif

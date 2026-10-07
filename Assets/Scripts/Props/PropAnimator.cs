@@ -52,6 +52,7 @@ public class PropAnimator : MonoBehaviour
     private bool isHighlighted = false;
     private int currentSpookLevel = 0;
     private float currentSpeedMultiplier = 1f;
+    private float animationPhase = 0f; // accumulated so speed changes don't make the animation jump
 
     private void Start()
     {
@@ -105,7 +106,8 @@ public class PropAnimator : MonoBehaviour
         Vector3 positionOffset = Vector3.zero;
         Quaternion rotationOffset = Quaternion.identity;
 
-        float time = (Time.time + timeOffset) * currentSpeedMultiplier;
+        animationPhase += Time.deltaTime * currentSpeedMultiplier;
+        float time = animationPhase + timeOffset;
 
         // Float animation
         if (enableFloat)
@@ -149,15 +151,8 @@ public class PropAnimator : MonoBehaviour
         // Apply rotation
         if (enableRotation || enableSway)
         {
-            if (useOscillatingRotation || enableSway)
-            {
-                transform.localRotation = startRotation * rotationOffset;
-            }
-            else
-            {
-                // Continuous rotation ignores start rotation
-                transform.localRotation = rotationOffset;
-            }
+            // Relative to the authored orientation
+            transform.localRotation = startRotation * rotationOffset;
         }
     }
 

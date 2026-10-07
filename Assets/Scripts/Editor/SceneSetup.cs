@@ -2,267 +2,757 @@
 // Source: Module M25 - Editor Tools
 
 #if UNITY_EDITOR
+using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.UI;
 
 /// <summary>
-/// Editor tool to automatically set up the CursedPortal scene with all required objects.
-/// Menu: CursedPortal > Setup Scene
+/// Generates the complete, playable parlor scene and saves it as Assets/Scenes/CursedPortal.unity
+/// (registered in Build Settings). Every reference the runtime scripts need is wired here.
+/// Menu: CursedPortal > Setup Main Scene
 /// </summary>
 public static class SceneSetup
 {
+    private const string MaterialsFolder = "Assets/Materials/Generated";
+    private const string ParlorProfilePath = "Assets/Settings/CursedPortal_VolumeProfile.asset";
+
+    // Eye height above the player's capsule centre (capsule: height 1.8, centre at the transform)
+    private const float EyeOffset = 0.7f;
+
     [MenuItem("CursedPortal/Setup Main Scene", false, 100)]
     public static void SetupMainScene()
     {
-        Debug.Log("[SceneSetup] Setting up CursedPortal scene...");
+        if (!CursedPortalEditorUtil.EnsureTMPResources()) return;
+        if (!CursedPortalEditorUtil.BeginNewScene(CursedPortalEditorUtil.MainScenePath)) return;
 
-        // Create root objects
-        CreateManagers();
-        CreatePlayerRig();
+        // URP first: primitives created afterwards get the pipeline's default material
+        SetupURP.EnsurePipelineAssigned();
+
+        Debug.Log("[SceneSetup] Generating CursedPortal scene...");
+
+        GameObject managers = CreateManagers();
+        Camera playerCamera = CreatePlayerRig(out InteractionManager interaction);
         CreateRoom();
-        CreateEnvironment();
-        CreateUI();
+        Transform crystalBall = CreateProps();
+        CreateVFX(managers.GetComponent<VFXManager>(), crystalBall.position);
+        CreateEnvironment(managers.GetComponent<PostFXController>());
+        CreateUI(managers.GetComponent<PortalSequence>(), interaction);
 
-        Debug.Log("[SceneSetup] Scene setup complete! Save the scene.");
-        EditorUtility.DisplayDialog("Scene Setup", "CursedPortal scene has been set up.\nRemember to save the scene!", "OK");
-    }
+        if (!CursedPortalEditorUtil.SaveSceneAndRegister(CursedPortalEditorUtil.MainScenePath)) return;
 
-    [MenuItem("CursedPortal/Setup Finale Scene", false, 101)]
-    public static void SetupFinaleScene()
-    {
-        Debug.Log("[SceneSetup] Setting up OtherDimension scene...");
-
-        CreateManagers();
-        CreateFinalePlayerRig();
-        CreateFinalePlatform();
-        CreateSpiritCore();
-        CreateFinaleUI();
-
-        Debug.Log("[SceneSetup] Finale scene setup complete!");
-        EditorUtility.DisplayDialog("Scene Setup", "OtherDimension scene has been set up.\nRemember to save the scene!", "OK");
-    }
-
-    private static void CreateManagers()
-    {
-        if (Object.FindObjectOfType<GameManager>() != null)
+        string message = $"Saved {CursedPortalEditorUtil.MainScenePath} and added it to Build Settings.\n\n" +
+                         "Next: CursedPortal > Create OtherDimension Scene (the portal's destination), " +
+                         "then open CursedPortal.unity, start Ollama and press Play.";
+        Debug.Log("[SceneSetup] " + message);
+        if (!Application.isBatchMode)
         {
-            Debug.Log("[SceneSetup] Managers already exist, skipping...");
-            return;
+            EditorUtility.DisplayDialog("Scene Setup", message, "OK");
         }
+    }
 
+    // ------------------------------------------------------------------ managers
+
+    /// <summary>
+    /// All persistent (DontDestroyOnLoad) managers on one root object, with nothing scene-only under it.
+    /// </summary>
+    private static GameObject CreateManagers()
+    {
         GameObject managers = new GameObject("Managers");
         managers.AddComponent<GameManager>();
         managers.AddComponent<EventManager>();
         managers.AddComponent<RitualLoop>();
         managers.AddComponent<LLMManager>();
         managers.AddComponent<LLMStreamManager>();
-        managers.AddComponent<PortalSequence>();
         managers.AddComponent<CursorManager>();
-
-        // Audio child
-        GameObject audio = new GameObject("Audio");
-        audio.transform.SetParent(managers.transform);
-        audio.AddComponent<AudioManager>();
+        managers.AddComponent<PortalSequence>();
+        managers.AddComponent<AudioManager>();   // creates its AudioSources as children at runtime
+        managers.AddComponent<VFXManager>();
+        managers.AddComponent<PostFXController>();
         // VoiceSynth deferred to v2
 
-        // VFX child
-        GameObject vfx = new GameObject("VFX");
-        vfx.transform.SetParent(managers.transform);
-        vfx.AddComponent<VFXManager>();
-        vfx.AddComponent<PostFXController>();
-
-        Debug.Log("[SceneSetup] Created Managers");
+        CreatePortalFadeCanvas(managers);
+        return managers;
     }
 
-    private static void CreatePlayerRig()
+    /// <summary>
+    /// The breach fade lives under the persistent Managers object so it survives the scene load.
+    /// </summary>
+    private static void CreatePortalFadeCanvas(GameObject managers)
+    {
+        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("PortalFadeCanvas", 900, managers.transform);
+        Object.DestroyImmediate(canvas.GetComponent<GraphicRaycaster>());
+
+        Image fade = CursedPortalEditorUtil.CreateImage("FadePanel", canvas.transform, Color.clear);
+        CanvasGroup fadeGroup = fade.gameObject.AddComponent<CanvasGroup>();
+        fadeGroup.alpha = 0f;
+        fadeGroup.interactable = false;
+        fadeGroup.blocksRaycasts = false;
+
+        // Sibling of the fade panel (not under its CanvasGroup, which is transparent when the overlay shows)
+        TextMeshProUGUI breach = CursedPortalEditorUtil.CreateText("BreachOverlay", canvas.transform,
+            "DIMENSION BREACH", 96f, TextAlignmentOptions.Center, new Color(0.7f, 0.05f, 0.05f),
+            new Vector2(0f, 0.4f), new Vector2(1f, 0.6f));
+        breach.fontStyle = FontStyles.Bold;
+        breach.gameObject.SetActive(false);
+
+        PortalSequence portal = managers.GetComponent<PortalSequence>();
+        CursedPortalEditorUtil.SetRef(portal, "fadeCanvasGroup", fadeGroup);
+        CursedPortalEditorUtil.SetRef(portal, "fadeImage", fade);
+        CursedPortalEditorUtil.SetRef(portal, "breachOverlay", breach.gameObject);
+    }
+
+    // ------------------------------------------------------------------ player
+
+    /// <summary>
+    /// Player (CharacterController centred on the transform, as FirstPersonController expects) with a
+    /// shake pivot between the body and the camera, so CameraShake and CameraController don't fight.
+    /// </summary>
+    public static Camera CreatePlayerRig(out InteractionManager interaction)
     {
         GameObject playerRig = new GameObject("PlayerRig");
-        playerRig.transform.position = new Vector3(0f, 1.8f, -8f);
         playerRig.tag = "Player";
+        playerRig.transform.position = new Vector3(0f, 0.98f, -3.5f); // feet on the floor, inside the room, facing the props
 
-        // Add CharacterController
         CharacterController cc = playerRig.AddComponent<CharacterController>();
         cc.height = 1.8f;
         cc.radius = 0.3f;
-        cc.center = new Vector3(0f, -0.9f, 0f);
+        cc.center = Vector3.zero;
+        cc.skinWidth = 0.08f;
+        cc.stepOffset = 0.3f;
 
-        // Add FirstPersonController
         playerRig.AddComponent<FirstPersonController>();
+        playerRig.AddComponent<FootstepSystem>();
 
-        // Create camera
+        Camera cam = CreateCameraRig(playerRig.transform);
+        interaction = cam.gameObject.AddComponent<InteractionManager>();
+
+        Debug.Log("[SceneSetup] Created PlayerRig");
+        return cam;
+    }
+
+    /// <summary>
+    /// CameraRig (CameraShake) > MainCamera (Camera, CameraController, AudioListener, post-processing on).
+    /// Shared with the finale generator.
+    /// </summary>
+    public static Camera CreateCameraRig(Transform body)
+    {
+        GameObject cameraRig = new GameObject("CameraRig");
+        cameraRig.transform.SetParent(body, false);
+        cameraRig.transform.localPosition = new Vector3(0f, EyeOffset, 0f);
+        cameraRig.AddComponent<CameraShake>();
+
         GameObject cameraObj = new GameObject("MainCamera");
-        cameraObj.transform.SetParent(playerRig.transform);
-        cameraObj.transform.localPosition = Vector3.zero;
+        cameraObj.transform.SetParent(cameraRig.transform, false);
         cameraObj.tag = "MainCamera";
 
         Camera cam = cameraObj.AddComponent<Camera>();
         cam.fieldOfView = 70f;
-        cam.nearClipPlane = 0.1f;
+        cam.nearClipPlane = 0.05f;
+        cam.farClipPlane = 200f;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = Color.black;
+        cam.GetUniversalAdditionalCameraData().renderPostProcessing = true; // off by default for scripted cameras
 
-        cameraObj.AddComponent<CameraController>();
-        cameraObj.AddComponent<InteractionManager>();
+        CameraController controller = cameraObj.AddComponent<CameraController>();
+        CursedPortalEditorUtil.SetRef(controller, "playerBody", body); // its fallback (parent) would be the pivot
         cameraObj.AddComponent<AudioListener>();
-
-        Debug.Log("[SceneSetup] Created PlayerRig");
+        return cam;
     }
+
+    // ------------------------------------------------------------------ room & props
 
     private static void CreateRoom()
     {
         GameObject roomRoot = new GameObject("RoomRoot");
+        Material wallMat = CreateLitMaterial("ParlorWalls", new Color(0.16f, 0.1f, 0.12f), 0.2f, false);
+        Material floorMat = CreateLitMaterial("ParlorFloor", new Color(0.12f, 0.08f, 0.06f), 0.45f, false);
 
-        // Floor
-        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        floor.name = "Floor";
-        floor.transform.SetParent(roomRoot.transform);
-        floor.transform.localScale = new Vector3(10f, 0.1f, 10f);
-        floor.transform.position = new Vector3(0f, -0.05f, 0f);
-
-        // Ceiling
-        GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        ceiling.name = "Ceiling";
-        ceiling.transform.SetParent(roomRoot.transform);
-        ceiling.transform.localScale = new Vector3(10f, 0.1f, 10f);
-        ceiling.transform.position = new Vector3(0f, 5.05f, 0f);
-
-        // Walls
-        CreateWall(roomRoot.transform, "WallNorth", new Vector3(0f, 2.5f, 5f), new Vector3(10f, 5f, 0.1f));
-        CreateWall(roomRoot.transform, "WallSouth", new Vector3(0f, 2.5f, -5f), new Vector3(10f, 5f, 0.1f));
-        CreateWall(roomRoot.transform, "WallEast", new Vector3(5f, 2.5f, 0f), new Vector3(0.1f, 5f, 10f));
-        CreateWall(roomRoot.transform, "WallWest", new Vector3(-5f, 2.5f, 0f), new Vector3(0.1f, 5f, 10f));
-
-        // Props
-        CreateProp(roomRoot.transform, "Table", new Vector3(0f, 0.4f, 0f), "Raven");
-        CreateProp(roomRoot.transform, "CrystalBall", new Vector3(0f, 1f, 0f), "Raven");
-        CreateProp(roomRoot.transform, "Mirror", new Vector3(-4.9f, 2f, 0f), "Narrator");
-        CreateProp(roomRoot.transform, "Booth", new Vector3(3f, 0f, 3f), "Usher");
+        CreateBox(roomRoot.transform, "Floor", new Vector3(0f, -0.05f, 0f), new Vector3(10f, 0.1f, 10f), floorMat);
+        CreateBox(roomRoot.transform, "Ceiling", new Vector3(0f, 5.05f, 0f), new Vector3(10f, 0.1f, 10f), wallMat);
+        CreateBox(roomRoot.transform, "WallNorth", new Vector3(0f, 2.5f, 5f), new Vector3(10f, 5f, 0.1f), wallMat);
+        CreateBox(roomRoot.transform, "WallSouth", new Vector3(0f, 2.5f, -5f), new Vector3(10f, 5f, 0.1f), wallMat);
+        CreateBox(roomRoot.transform, "WallEast", new Vector3(5f, 2.5f, 0f), new Vector3(0.1f, 5f, 10f), wallMat);
+        CreateBox(roomRoot.transform, "WallWest", new Vector3(-5f, 2.5f, 0f), new Vector3(0.1f, 5f, 10f), wallMat);
 
         Debug.Log("[SceneSetup] Created Room");
     }
 
-    private static void CreateWall(Transform parent, string name, Vector3 position, Vector3 scale)
+    /// <summary>
+    /// One interactable prop per spirit, plus the séance table and its candles. Returns the crystal ball.
+    /// </summary>
+    private static Transform CreateProps()
     {
-        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        wall.name = name;
-        wall.transform.SetParent(parent);
-        wall.transform.position = position;
-        wall.transform.localScale = scale;
-    }
+        GameObject propsRoot = new GameObject("Props");
 
-    private static void CreateProp(Transform parent, string name, Vector3 position, string spiritKey)
-    {
-        PrimitiveType type = name == "CrystalBall" ? PrimitiveType.Sphere : PrimitiveType.Cube;
-        GameObject prop = GameObject.CreatePrimitive(type);
-        prop.name = name;
-        prop.transform.SetParent(parent);
-        prop.transform.position = position;
-
-        if (name == "CrystalBall")
-            prop.transform.localScale = Vector3.one * 0.4f;
-        else if (name == "Mirror")
+        // Séance table with flickering candles (furniture, not interactable)
+        Material tableMat = CreateLitMaterial("SeanceTable", new Color(0.18f, 0.1f, 0.06f), 0.5f, false);
+        CreateBox(propsRoot.transform, "Table", new Vector3(0f, 0.4f, 0f), new Vector3(1.6f, 0.8f, 1f), tableMat);
+        Material candleMat = CreateLitMaterial("Candle", new Color(0.9f, 0.85f, 0.7f), 0.3f, false);
+        Vector3[] candlePositions =
         {
-            prop.transform.localScale = new Vector3(0.1f, 2f, 1.5f);
-            prop.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            new Vector3(-0.65f, 0.86f, -0.35f), new Vector3(0.65f, 0.86f, -0.35f),
+            new Vector3(-0.65f, 0.86f, 0.35f), new Vector3(0.65f, 0.86f, 0.35f),
+        };
+        for (int i = 0; i < candlePositions.Length; i++)
+        {
+            CreateCandle(propsRoot.transform, $"Candle_{i}", candlePositions[i], candleMat);
         }
 
-        InteractableSpirit spirit = prop.AddComponent<InteractableSpirit>();
-        // Note: spiritKey needs to be set in inspector
-        Debug.Log($"[SceneSetup] Created prop {name} - set spiritKey to '{spiritKey}' in Inspector");
+        // Crystal ball on the table: the Raven
+        GameObject crystalBall = CreateSpiritProp(propsRoot.transform, "CrystalBall", "Raven", PrimitiveType.Sphere,
+            new Vector3(0f, 0.98f, 0f), Vector3.one * 0.35f, Quaternion.identity,
+            CreateLitMaterial("CrystalBall", new Color(0.35f, 0.25f, 0.55f), 0.95f, true),
+            new Color(0.5f, 0.3f, 0.9f), new Vector3(0f, 0.4f, 0f));
+
+        // Mirror on the west wall: the Tell-Tale Heart narrator
+        CreateSpiritProp(propsRoot.transform, "Mirror", "Narrator", PrimitiveType.Cube,
+            new Vector3(-4.92f, 1.6f, 0f), new Vector3(0.05f, 2f, 1.2f), Quaternion.identity,
+            CreateLitMaterial("Mirror", new Color(0.55f, 0.6f, 0.65f), 0.95f, true, 0.3f), // fully metallic would render black: there is little to reflect
+            new Color(0.8f, 0.2f, 0.2f), new Vector3(0.6f, 0f, 0f));
+
+        // Booth in the north-east corner: Roderick Usher
+        CreateSpiritProp(propsRoot.transform, "Booth", "Usher", PrimitiveType.Cube,
+            new Vector3(3.6f, 1.1f, 3.6f), new Vector3(1.4f, 2.2f, 1.4f), Quaternion.Euler(0f, 45f, 0f),
+            CreateLitMaterial("Booth", new Color(0.22f, 0.14f, 0.1f), 0.35f, true),
+            new Color(0.3f, 0.6f, 0.4f), new Vector3(0f, 0f, -0.9f));
+
+        // Dim, flickering sconces so the mirror and booth can be found from across the room
+        CreateSconce(propsRoot.transform, "MirrorSconce", new Vector3(-4.6f, 2.9f, 0f));
+        CreateSconce(propsRoot.transform, "BoothSconce", new Vector3(2.6f, 2.6f, 2.6f));
+
+        Debug.Log("[SceneSetup] Created Props (CrystalBall=Raven, Mirror=Narrator, Booth=Usher)");
+        return crystalBall.transform;
     }
 
-    private static void CreateEnvironment()
+    /// <summary>
+    /// A primitive with an InteractableSpirit bound to a spirit key and a child glow light for highlighting.
+    /// </summary>
+    private static GameObject CreateSpiritProp(Transform parent, string name, string spiritKey, PrimitiveType shape,
+        Vector3 position, Vector3 scale, Quaternion rotation, Material material, Color glowColor, Vector3 glowLocalOffset)
+    {
+        GameObject prop = GameObject.CreatePrimitive(shape);
+        prop.name = name;
+        prop.transform.SetParent(parent, false);
+        prop.transform.SetPositionAndRotation(position, rotation);
+        prop.transform.localScale = scale;
+        prop.GetComponent<Renderer>().sharedMaterial = material;
+
+        GameObject glowObj = new GameObject("GlowLight");
+        glowObj.transform.SetParent(prop.transform, false);
+        // Offsets are given in world units; undo the prop's scale
+        glowObj.transform.localPosition = new Vector3(
+            glowLocalOffset.x / scale.x, glowLocalOffset.y / scale.y, glowLocalOffset.z / scale.z);
+        Light glow = glowObj.AddComponent<Light>();
+        glow.type = LightType.Point;
+        glow.range = 3f;
+        glow.intensity = 1.5f;
+        glow.color = glowColor;
+        glow.enabled = false; // switched on while the player looks at the prop
+
+        InteractableSpirit spirit = prop.AddComponent<InteractableSpirit>();
+        CursedPortalEditorUtil.SetString(spirit, "spiritKey", spiritKey);
+        CursedPortalEditorUtil.SetRef(spirit, "glowLight", glow);
+        SerializedObject so = new SerializedObject(spirit);
+        so.FindProperty("highlightColor").colorValue = glowColor;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        return prop;
+    }
+
+    private static void CreateSconce(Transform parent, string name, Vector3 position)
+    {
+        GameObject sconce = new GameObject(name);
+        sconce.transform.SetParent(parent, false);
+        sconce.transform.position = position;
+        Light light = sconce.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.range = 3.5f;
+        light.intensity = 0.8f;
+        light.color = new Color(1f, 0.7f, 0.45f);
+        SetFlickerBase(sconce.AddComponent<CandleFlicker>(), 0.8f); // CandleFlicker drives the light from its own fields
+    }
+
+    private static void SetFlickerBase(CandleFlicker flicker, float baseIntensity)
+    {
+        SerializedObject so = new SerializedObject(flicker);
+        so.FindProperty("baseIntensity").floatValue = baseIntensity;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void CreateCandle(Transform parent, string name, Vector3 position, Material material)
+    {
+        GameObject candle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        candle.name = name;
+        candle.transform.SetParent(parent, false);
+        candle.transform.position = position;
+        candle.transform.localScale = new Vector3(0.05f, 0.06f, 0.05f);
+        candle.GetComponent<Renderer>().sharedMaterial = material;
+        candle.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+        Object.DestroyImmediate(candle.GetComponent<Collider>());
+
+        GameObject flame = new GameObject("Flame");
+        flame.transform.SetParent(parent, false);
+        flame.transform.position = position + new Vector3(0f, 0.12f, 0f);
+        Light light = flame.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.range = 3f;
+        light.intensity = 1.2f;
+        light.color = new Color(1f, 0.75f, 0.45f);
+        SetFlickerBase(flame.AddComponent<CandleFlicker>(), 1.2f); // reacts to the spook level
+    }
+
+    // ------------------------------------------------------------------ VFX
+
+    /// <summary>
+    /// Scene-owned particle systems for VFXManager (it is persistent; these vanish with the parlor).
+    /// </summary>
+    private static void CreateVFX(VFXManager vfx, Vector3 orbPosition)
+    {
+        GameObject vfxRoot = new GameObject("VFX");
+        Material particleMat = ParticleMaterial();
+
+        ParticleSystem fog = CreateParticles(vfxRoot.transform, "FogParticles", new Vector3(0f, 0.4f, 0f), particleMat,
+            lifetime: 8f, speed: 0.1f, size: 3f, color: new Color(0.25f, 0.2f, 0.3f, 0.12f), maxParticles: 200,
+            rate: 10f, playOnAwake: true);
+        ParticleSystem.ShapeModule fogShape = fog.shape;
+        fogShape.shapeType = ParticleSystemShapeType.Box;
+        fogShape.scale = new Vector3(9f, 0.4f, 9f);
+
+        ParticleSystem ghosts = CreateParticles(vfxRoot.transform, "GhostParticles", new Vector3(0f, 1.6f, 0f), particleMat,
+            lifetime: 4f, speed: 0.3f, size: 1.2f, color: new Color(0.8f, 0.85f, 1f, 0.2f), maxParticles: 50,
+            rate: 0f, playOnAwake: false);
+        ParticleSystem.ShapeModule ghostShape = ghosts.shape;
+        ghostShape.shapeType = ParticleSystemShapeType.Box;
+        ghostShape.scale = new Vector3(8f, 1.5f, 8f);
+
+        ParticleSystem portal = CreateParticles(vfxRoot.transform, "PortalBurstParticles", new Vector3(0f, 1.6f, 0f), particleMat,
+            lifetime: 2f, speed: 4f, size: 0.2f, color: new Color(0.8f, 0.1f, 0.3f, 0.9f), maxParticles: 200,
+            rate: 0f, playOnAwake: false);
+        ParticleSystem.ShapeModule portalShape = portal.shape;
+        portalShape.shapeType = ParticleSystemShapeType.Sphere;
+        portalShape.radius = 0.5f;
+
+        ParticleSystem orb = CreateParticles(vfxRoot.transform, "OrbGlowParticles", orbPosition, particleMat,
+            lifetime: 1.5f, speed: 0.2f, size: 0.12f, color: new Color(0.6f, 0.3f, 1f, 0.8f), maxParticles: 60,
+            rate: 15f, playOnAwake: false);
+        ParticleSystem.ShapeModule orbShape = orb.shape;
+        orbShape.shapeType = ParticleSystemShapeType.Sphere;
+        orbShape.radius = 0.2f;
+
+        CursedPortalEditorUtil.SetRef(vfx, "fogParticles", fog);
+        CursedPortalEditorUtil.SetRef(vfx, "ghostParticles", ghosts);
+        CursedPortalEditorUtil.SetRef(vfx, "portalBurstParticles", portal);
+        CursedPortalEditorUtil.SetRef(vfx, "orbGlowParticles", orb);
+        Debug.Log("[SceneSetup] Created VFX particle systems");
+    }
+
+    public static ParticleSystem CreateParticles(Transform parent, string name, Vector3 position, Material material,
+        float lifetime, float speed, float size, Color color, int maxParticles, float rate, bool playOnAwake)
+    {
+        GameObject obj = new GameObject(name);
+        obj.transform.SetParent(parent, false);
+        obj.transform.position = position;
+
+        ParticleSystem ps = obj.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        ParticleSystem.MainModule main = ps.main;
+        main.startLifetime = lifetime;
+        main.startSpeed = speed;
+        main.startSize = size;
+        main.startColor = color;
+        main.maxParticles = maxParticles;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.playOnAwake = playOnAwake;
+
+        ParticleSystem.EmissionModule emission = ps.emission;
+        emission.rateOverTime = rate;
+
+        ParticleSystemRenderer psRenderer = obj.GetComponent<ParticleSystemRenderer>();
+        psRenderer.sharedMaterial = material;
+        return ps;
+    }
+
+    // ------------------------------------------------------------------ environment
+
+    private static void CreateEnvironment(PostFXController postFX)
     {
         GameObject environment = new GameObject("Environment");
 
-        // Directional light
+        // Dim moonlight; the candles and prop glows carry the scene
         GameObject lightObj = new GameObject("DirectionalLight");
         lightObj.transform.SetParent(environment.transform);
         lightObj.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         Light light = lightObj.AddComponent<Light>();
         light.type = LightType.Directional;
-        light.intensity = 0.2f;
+        light.intensity = 0.15f;
         light.color = new Color(0.6f, 0.5f, 0.8f);
 
-        // Global Volume
+        // Lighting saved with the scene (VFXManager applies the same fog at runtime)
+        RenderSettings.skybox = null;
+        RenderSettings.ambientMode = AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.06f, 0.04f, 0.09f);
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogDensity = 0.01f;
+        RenderSettings.fogColor = new Color(0.1f, 0.05f, 0.15f);
+
+        // Global post-processing volume driven by PostFXController
         GameObject volumeObj = new GameObject("GlobalVolume");
         volumeObj.transform.SetParent(environment.transform);
         Volume volume = volumeObj.AddComponent<Volume>();
         volume.isGlobal = true;
+        volume.priority = 0f;
+        volume.sharedProfile = LoadOrCreateParlorProfile();
+        CursedPortalEditorUtil.SetRef(postFX, "volume", volume);
 
-        Debug.Log("[SceneSetup] Created Environment - Add Volume Profile manually");
+        Debug.Log("[SceneSetup] Created Environment");
     }
 
-    private static void CreateUI()
+    /// <summary>
+    /// The parlor's volume profile asset with every override PostFXController drives.
+    /// An existing profile is kept (so tuning survives regeneration); missing overrides are added.
+    /// </summary>
+    private static VolumeProfile LoadOrCreateParlorProfile()
     {
-        // Chat UI
-        GameObject chatCanvas = new GameObject("ChatCanvas");
-        Canvas canvas = chatCanvas.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        chatCanvas.AddComponent<UnityEngine.UI.CanvasScaler>();
-        chatCanvas.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-        chatCanvas.AddComponent<UIChat>();
+        VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(ParlorProfilePath);
+        if (profile == null)
+        {
+            CursedPortalEditorUtil.EnsureFolder("Assets/Settings");
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            AssetDatabase.CreateAsset(profile, ParlorProfilePath);
+        }
 
-        // Debug UI
-        GameObject debugCanvas = new GameObject("DebugCanvas");
-        Canvas debugC = debugCanvas.AddComponent<Canvas>();
-        debugC.renderMode = RenderMode.ScreenSpaceOverlay;
-        debugCanvas.AddComponent<UnityEngine.UI.CanvasScaler>();
-        debugCanvas.AddComponent<DebugUI>();
+        if (!profile.Has<Vignette>())
+        {
+            Vignette vignette = AddProfileComponent<Vignette>(profile);
+            vignette.intensity.Override(0.1f);
+            vignette.color.Override(Color.black);
+        }
+        if (!profile.Has<ColorAdjustments>())
+        {
+            ColorAdjustments color = AddProfileComponent<ColorAdjustments>(profile);
+            color.saturation.Override(0f);
+            color.contrast.Override(0f);
+            color.colorFilter.Override(Color.white);
+        }
+        if (!profile.Has<ChromaticAberration>())
+        {
+            ChromaticAberration chroma = AddProfileComponent<ChromaticAberration>(profile);
+            chroma.intensity.Override(0f);
+            chroma.active = false;
+        }
+        if (!profile.Has<LensDistortion>())
+        {
+            LensDistortion lens = AddProfileComponent<LensDistortion>(profile);
+            lens.intensity.Override(0f);
+            lens.active = false;
+        }
+        if (!profile.Has<Bloom>())
+        {
+            Bloom bloom = AddProfileComponent<Bloom>(profile);
+            bloom.threshold.Override(0.9f);
+            bloom.intensity.Override(0.5f);
+        }
 
-        Debug.Log("[SceneSetup] Created UI - Add UI elements manually");
+        EditorUtility.SetDirty(profile);
+        AssetDatabase.SaveAssets();
+        return profile;
     }
 
-    private static void CreateFinalePlayerRig()
+    /// <summary>
+    /// Adds a volume override and stores it inside the profile asset (otherwise it is lost on save).
+    /// </summary>
+    public static T AddProfileComponent<T>(VolumeProfile profile) where T : VolumeComponent
     {
-        GameObject playerRig = new GameObject("PlayerRig");
-        playerRig.transform.position = new Vector3(0f, 1.8f, 0f);
-        playerRig.tag = "Player";
-
-        CharacterController cc = playerRig.AddComponent<CharacterController>();
-        cc.height = 1.8f;
-        playerRig.AddComponent<FirstPersonController>();
-
-        GameObject cameraObj = new GameObject("MainCamera");
-        cameraObj.transform.SetParent(playerRig.transform);
-        cameraObj.transform.localPosition = Vector3.zero;
-        cameraObj.tag = "MainCamera";
-        cameraObj.AddComponent<Camera>().fieldOfView = 70f;
-        cameraObj.AddComponent<CameraController>();
-        cameraObj.AddComponent<AudioListener>();
+        T component = profile.Add<T>(false);
+        component.hideFlags = HideFlags.HideInInspector | HideFlags.HideInHierarchy;
+        AssetDatabase.AddObjectToAsset(component, profile);
+        return component;
     }
 
-    private static void CreateFinalePlatform()
+    // ------------------------------------------------------------------ UI
+
+    private static void CreateUI(PortalSequence portal, InteractionManager interaction)
     {
-        GameObject platform = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        platform.name = "Platform";
-        platform.transform.position = Vector3.zero;
-        platform.transform.localScale = new Vector3(8f, 0.2f, 8f);
+        CursedPortalEditorUtil.CreateEventSystem();
+        CreateHUD(interaction);
+        CreateChatUI();
+        CreateScreenEffects(true);
+        CreateDebugUI();
+        Debug.Log("[SceneSetup] Created UI");
     }
 
-    private static void CreateSpiritCore()
+    /// <summary>
+    /// Crosshair plus the "[E]" prompt InteractionManager shows while a prop is targeted.
+    /// </summary>
+    private static void CreateHUD(InteractionManager interaction)
     {
-        GameObject core = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        core.name = "SpiritCore";
-        core.transform.position = new Vector3(0f, 3f, 2f);
-        core.transform.localScale = Vector3.one * 0.5f;
+        Canvas hud = CursedPortalEditorUtil.CreateCanvas("HUDCanvas", 5);
+        Object.DestroyImmediate(hud.GetComponent<GraphicRaycaster>());
 
-        Light light = core.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.range = 10f;
-        light.intensity = 2f;
-        light.color = Color.magenta;
+        RectTransform crosshair = CursedPortalEditorUtil.CreateRect("Crosshair", hud.transform,
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+        crosshair.sizeDelta = new Vector2(6f, 6f);
+        Image dot = crosshair.gameObject.AddComponent<Image>();
+        dot.color = new Color(0.85f, 0.8f, 0.9f, 0.6f);
+        dot.raycastTarget = false;
 
-        core.AddComponent<DimensionalLight>();
-        core.AddComponent<EpilogueNarrator>();
+        TextMeshProUGUI prompt = CursedPortalEditorUtil.CreateText("InteractPrompt", hud.transform,
+            "[E] Commune with the spirit", 28f, TextAlignmentOptions.Center, new Color(0.85f, 0.75f, 1f),
+            new Vector2(0.3f, 0.36f), new Vector2(0.7f, 0.42f));
+        prompt.gameObject.SetActive(false);
+        CursedPortalEditorUtil.SetRef(interaction, "interactPromptUI", prompt.gameObject);
     }
 
-    private static void CreateFinaleUI()
+    /// <summary>
+    /// Chat panel: scrolling TMP log, input field and send button, all wired to UIChat.
+    /// </summary>
+    private static void CreateChatUI()
     {
-        GameObject canvas = new GameObject("EpilogueCanvas");
-        Canvas c = canvas.AddComponent<Canvas>();
-        c.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.AddComponent<UnityEngine.UI.CanvasScaler>();
-        canvas.AddComponent<UIEpilogue>();
+        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("ChatCanvas", 10);
+        UIChat chat = canvas.gameObject.AddComponent<UIChat>(); // stays active: it polls the toggle key
+
+        RectTransform panel = CursedPortalEditorUtil.CreateRect("ChatPanel", canvas.transform,
+            new Vector2(0.02f, 0.03f), new Vector2(0.45f, 0.6f));
+        Image panelImage = panel.gameObject.AddComponent<Image>();
+        panelImage.color = new Color(0.04f, 0.02f, 0.06f, 0.85f);
+        CanvasGroup group = panel.gameObject.AddComponent<CanvasGroup>();
+        group.alpha = 0f; // hidden until the player opens the chat (UIChat.Start does the same)
+        group.interactable = false;
+        group.blocksRaycasts = false;
+
+        // Scrolling log
+        GameObject scrollObj = DefaultControls.CreateScrollView(CursedPortalEditorUtil.UIResources());
+        scrollObj.name = "ChatScroll";
+        RectTransform scrollRt = (RectTransform)scrollObj.transform;
+        scrollRt.SetParent(panel, false);
+        scrollRt.anchorMin = new Vector2(0f, 0.14f);
+        scrollRt.anchorMax = new Vector2(1f, 1f);
+        scrollRt.offsetMin = new Vector2(12f, 4f);
+        scrollRt.offsetMax = new Vector2(-12f, -12f);
+        scrollObj.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.35f);
+
+        ScrollRect scroll = scrollObj.GetComponent<ScrollRect>();
+        scroll.scrollSensitivity = 30f; // the default of 1 moves one pixel per mouse-wheel notch
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        if (scroll.horizontalScrollbar != null)
+        {
+            Object.DestroyImmediate(scroll.horizontalScrollbar.gameObject);
+            scroll.horizontalScrollbar = null;
+        }
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+
+        RectTransform content = scroll.content;
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
+        content.sizeDelta = Vector2.zero;
+        VerticalLayoutGroup layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 8, 8);
+        layout.childControlHeight = true;
+        layout.childControlWidth = true;
+        layout.childForceExpandHeight = false;
+        layout.childForceExpandWidth = true;
+        ContentSizeFitter fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        TextMeshProUGUI chatLog = CursedPortalEditorUtil.CreateText("ChatLog", content, "", 24f,
+            TextAlignmentOptions.TopLeft, new Color(0.9f, 0.88f, 0.95f), Vector2.zero, Vector2.one);
+        chatLog.richText = true; // word wrapping is on by default
+
+        // Input field
+        GameObject inputObj = TMP_DefaultControls.CreateInputField(CursedPortalEditorUtil.TMPResources());
+        inputObj.name = "InputField";
+        RectTransform inputRt = (RectTransform)inputObj.transform;
+        inputRt.SetParent(panel, false);
+        inputRt.anchorMin = new Vector2(0f, 0f);
+        inputRt.anchorMax = new Vector2(0.78f, 0.13f);
+        inputRt.offsetMin = new Vector2(12f, 12f);
+        inputRt.offsetMax = new Vector2(-6f, 0f);
+        TMP_InputField input = inputObj.GetComponent<TMP_InputField>();
+        input.lineType = TMP_InputField.LineType.SingleLine; // Enter submits
+        input.characterLimit = 400;
+        input.pointSize = 22f;
+        if (input.placeholder is TMP_Text placeholder)
+        {
+            placeholder.text = "Speak to the spirits...";
+        }
+
+        // Send button
+        GameObject buttonObj = TMP_DefaultControls.CreateButton(CursedPortalEditorUtil.TMPResources());
+        buttonObj.name = "SendButton";
+        RectTransform buttonRt = (RectTransform)buttonObj.transform;
+        buttonRt.SetParent(panel, false);
+        buttonRt.anchorMin = new Vector2(0.78f, 0f);
+        buttonRt.anchorMax = new Vector2(1f, 0.13f);
+        buttonRt.offsetMin = new Vector2(6f, 12f);
+        buttonRt.offsetMax = new Vector2(-12f, 0f);
+        TMP_Text buttonLabel = buttonObj.GetComponentInChildren<TMP_Text>();
+        if (buttonLabel != null)
+        {
+            buttonLabel.text = "Send";
+        }
+
+        CursedPortalEditorUtil.SetRef(chat, "inputField", input);
+        CursedPortalEditorUtil.SetRef(chat, "chatLog", chatLog);
+        CursedPortalEditorUtil.SetRef(chat, "scrollRect", scroll);
+        CursedPortalEditorUtil.SetRef(chat, "canvasGroup", group);
+        CursedPortalEditorUtil.SetRef(chat, "sendButton", buttonObj.GetComponent<Button>());
+    }
+
+    /// <summary>
+    /// Full-screen flash/fade/vignette overlays for ScreenEffects (and the heartbeat pulse in the parlor).
+    /// Shared with the finale generator.
+    /// </summary>
+    public static void CreateScreenEffects(bool withHeartbeat)
+    {
+        // Below the chat (10) so heartbeat pulses don't darken the text; above the HUD (5)
+        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("ScreenEffectsCanvas", 8);
+        Object.DestroyImmediate(canvas.GetComponent<GraphicRaycaster>());
+
+        Sprite vignetteSprite = CursedPortalEditorUtil.VignetteSprite();
+        Image heartbeatVignette = CursedPortalEditorUtil.CreateImage("HeartbeatVignette", canvas.transform, Color.clear);
+        heartbeatVignette.sprite = vignetteSprite;
+        Image damageVignette = CursedPortalEditorUtil.CreateImage("DamageVignette", canvas.transform, Color.clear);
+        damageVignette.sprite = vignetteSprite;
+        Image fade = CursedPortalEditorUtil.CreateImage("Fade", canvas.transform, Color.clear);
+        Image flash = CursedPortalEditorUtil.CreateImage("Flash", canvas.transform, Color.clear);
+        RectTransform overlayRt = CursedPortalEditorUtil.CreateRect("BreachOverlayGroup", canvas.transform, Vector2.zero, Vector2.one);
+        CanvasGroup overlay = overlayRt.gameObject.AddComponent<CanvasGroup>();
+        overlay.alpha = 0f;
+        overlay.blocksRaycasts = false;
+
+        ScreenEffects effects = canvas.gameObject.AddComponent<ScreenEffects>();
+        CursedPortalEditorUtil.SetRef(effects, "flashImage", flash);
+        CursedPortalEditorUtil.SetRef(effects, "fadeImage", fade);
+        CursedPortalEditorUtil.SetRef(effects, "damageVignette", damageVignette);
+        CursedPortalEditorUtil.SetRef(effects, "overlayGroup", overlay);
+
+        if (withHeartbeat)
+        {
+            HeartbeatEffect heartbeat = canvas.gameObject.AddComponent<HeartbeatEffect>();
+            CursedPortalEditorUtil.SetRef(heartbeat, "vignetteOverlay", heartbeatVignette);
+        }
+        else
+        {
+            Object.DestroyImmediate(heartbeatVignette.gameObject);
+        }
+    }
+
+    /// <summary>
+    /// F1 debug panel (DebugUI) and F12 spook overlay (SpookLevelDebugUI builds its own UI).
+    /// Both are inert in release builds.
+    /// </summary>
+    private static void CreateDebugUI()
+    {
+        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("DebugCanvas", 100);
+        DebugUI debug = canvas.gameObject.AddComponent<DebugUI>();
+
+        RectTransform panel = CursedPortalEditorUtil.CreateRect("DebugPanel", canvas.transform,
+            new Vector2(0.72f, 0.62f), new Vector2(0.98f, 0.97f));
+        Image panelImage = panel.gameObject.AddComponent<Image>();
+        panelImage.color = new Color(0f, 0f, 0f, 0.75f);
+
+        TextMeshProUGUI text = CursedPortalEditorUtil.CreateText("DebugText", panel, "", 20f,
+            TextAlignmentOptions.TopLeft, Color.white, new Vector2(0f, 0.22f), new Vector2(1f, 1f));
+        text.margin = new Vector4(12f, 12f, 12f, 4f);
+
+        GameObject sliderObj = DefaultControls.CreateSlider(CursedPortalEditorUtil.UIResources());
+        sliderObj.name = "SpookSlider";
+        RectTransform sliderRt = (RectTransform)sliderObj.transform;
+        sliderRt.SetParent(panel, false);
+        sliderRt.anchorMin = new Vector2(0.06f, 0.06f);
+        sliderRt.anchorMax = new Vector2(0.94f, 0.16f);
+        sliderRt.offsetMin = Vector2.zero;
+        sliderRt.offsetMax = Vector2.zero;
+
+        CursedPortalEditorUtil.SetRef(debug, "debugPanel", panel.gameObject);
+        CursedPortalEditorUtil.SetRef(debug, "debugText", text);
+        CursedPortalEditorUtil.SetRef(debug, "spookSlider", sliderObj.GetComponent<Slider>());
+
+        new GameObject("SpookLevelDebug").AddComponent<SpookLevelDebugUI>();
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private static GameObject CreateBox(Transform parent, string name, Vector3 position, Vector3 scale, Material material)
+    {
+        GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        box.name = name;
+        box.transform.SetParent(parent, false);
+        box.transform.position = position;
+        box.transform.localScale = scale;
+        box.GetComponent<Renderer>().sharedMaterial = material;
+        box.isStatic = true;
+        return box;
+    }
+
+    /// <summary>
+    /// Creates (or reuses) a URP Lit material asset. Emissive materials get the _EMISSION keyword with a black
+    /// emission colour, so the prop highlight (which sets _EmissionColor) is visible.
+    /// </summary>
+    public static Material CreateLitMaterial(string name, Color color, float smoothness, bool emissive, float metallic = 0f)
+    {
+        CursedPortalEditorUtil.EnsureFolder(MaterialsFolder);
+        string path = $"{MaterialsFolder}/{name}.mat";
+        Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat != null) return mat;
+
+        mat = new Material(FindShader("Universal Render Pipeline/Lit"));
+        mat.color = color;
+        mat.SetFloat("_Smoothness", smoothness);
+        mat.SetFloat("_Metallic", metallic);
+        if (emissive)
+        {
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", Color.black);
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        }
+        AssetDatabase.CreateAsset(mat, path);
+        return mat;
+    }
+
+    /// <summary>
+    /// Creates (or reuses) a URP Unlit material asset (glowing elements in the finale).
+    /// </summary>
+    public static Material CreateUnlitMaterial(string name, Color color)
+    {
+        CursedPortalEditorUtil.EnsureFolder(MaterialsFolder);
+        string path = $"{MaterialsFolder}/{name}.mat";
+        Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat != null) return mat;
+
+        mat = new Material(FindShader("Universal Render Pipeline/Unlit"));
+        mat.color = color;
+        AssetDatabase.CreateAsset(mat, path);
+        return mat;
+    }
+
+    /// <summary>
+    /// The pipeline's soft, transparent default particle material (falls back to Sprites/Default).
+    /// </summary>
+    public static Material ParticleMaterial()
+    {
+        RenderPipelineAsset pipeline = GraphicsSettings.defaultRenderPipeline;
+        Material mat = pipeline != null ? pipeline.defaultParticleMaterial : null;
+        return mat != null ? mat : new Material(FindShader("Sprites/Default"));
+    }
+
+    private static Shader FindShader(string shaderName)
+    {
+        Shader shader = Shader.Find(shaderName);
+        if (shader == null)
+        {
+            Debug.LogError($"[SceneSetup] Shader '{shaderName}' not found; is the URP package installed?");
+            shader = Shader.Find("Hidden/InternalErrorShader");
+        }
+        return shader;
     }
 }
 #endif
