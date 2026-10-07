@@ -37,28 +37,19 @@ Move `Assets/Scripts/Editor/` contents to `Assets/Scripts/_Deferred/Editor/`. Th
 **Outcome:** A Unity project that opens, compiles with zero errors, and shows an empty scene.
 
 ### 1.1 — Unity project shell
-Create a new Unity 2023.2 LTS project with URP template. This generates:
+*Done:* the repository now contains `ProjectSettings/`, `Packages/manifest.json` and `ProjectVersion.txt` (Unity 2023.2.20f1); open the folder directly in Unity Hub. Originally this step was: create a new Unity 2023.2 project with the URP template, which generates:
 - `ProjectSettings/` (all mandatory editor configs)
 - `Packages/manifest.json` (package manager)
 - `ProjectVersion.txt`
 - `.meta` files for everything
 
 ### 1.2 — Package dependencies
-Install via Package Manager:
-```
-com.unity.textmeshpro
-com.unity.render-pipelines.universal
-com.unity.cinemachine          (needed later for camera shake)
-```
-Install via git URL in `manifest.json`:
-```
-"com.undream.llmunity": "https://github.com/undreamai/LLMUnity.git"
-```
+*Done:* `Packages/manifest.json` lists URP 16, uGUI 2.0 (which contains TextMesh Pro on 2023.2 — do not add the separate `com.unity.textmeshpro` package), Cinemachine and Timeline. No Unity LLM package is needed: the scripts call Ollama / llama.cpp directly with UnityWebRequest.
 
 ### 1.3 — Import existing scripts
 Copy `Assets/Scripts/` into the Unity project's `Assets/Scripts/`. Unity will auto-generate `.meta` files.
 
-**Expected:** Compilation errors from missing references (LLMUnity types, TMP types). Fix by ensuring packages are installed. If LLMUnity API has changed since the scripts were written, adapt `LLMManager.cs` and `LLMStreamManager.cs` to the current API.
+**Expected:** The scripts compile with zero errors once the packages have resolved.
 
 ### 1.4 — Import streaming assets
 Copy `Assets/StreamingAssets/` into the Unity project. Verify:

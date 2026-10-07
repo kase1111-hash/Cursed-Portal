@@ -41,19 +41,18 @@ public class BoothProp : MonoBehaviour, IInteractable
     private bool playerInZone = false;
     private bool hasTriggered = false;
     private float zoneTimer = 0f;
-    private float originalFogDensity;
+    private bool rearmOnExit = false;
 
     private void Start()
     {
-        // Setup zone collider
+        // Setup zone collider: a dedicated trigger next to the booth's solid collider. Turning the
+        // booth's own collider into a trigger would make it walk-through and impossible to target with E.
         if (zoneCollider == null)
         {
-            zoneCollider = GetComponent<BoxCollider>();
+            zoneCollider = gameObject.AddComponent<BoxCollider>();
+            zoneCollider.size = new Vector3(1.6f, 1f, 1.6f); // a margin around the booth (local units)
         }
-        if (zoneCollider != null)
-        {
-            zoneCollider.isTrigger = true;
-        }
+        zoneCollider.isTrigger = true;
 
         // Setup lights
         if (boothLights != null)
@@ -67,8 +66,6 @@ public class BoothProp : MonoBehaviour, IInteractable
             }
         }
 
-        // Store original fog
-        originalFogDensity = RenderSettings.fogDensity;
     }
 
     private void Update()
@@ -84,17 +81,16 @@ public class BoothProp : MonoBehaviour, IInteractable
     {
         if (!useZoneTrigger || hasTriggered) return;
 
+        // Don't interrupt a conversation already under way
+        if (UIChat.Instance != null && UIChat.Instance.IsVisible()) return;
+
         if (playerInZone)
         {
             zoneTimer += Time.deltaTime;
 
-            // Gradual atmosphere change while waiting
+            // Gradual atmosphere change while waiting (fog is added as a burst when Usher appears)
             float t = zoneTimer / zoneTriggerDelay;
             UpdateLightColors(t);
-
-            // Increase fog slightly
-            RenderSettings.fogDensity = Mathf.Lerp(originalFogDensity,
-                originalFogDensity + fogIncreaseAmount, t);
 
             if (zoneTimer >= zoneTriggerDelay)
             {
@@ -229,7 +225,15 @@ public class BoothProp : MonoBehaviour, IInteractable
     /// </summary>
     private void ResetBooth()
     {
-        hasTriggered = false;
+        // Re-arm only once the player has left; otherwise Usher would interrupt every few seconds
+        if (playerInZone)
+        {
+            rearmOnExit = true;
+        }
+        else
+        {
+            hasTriggered = false;
+        }
         zoneTimer = 0f;
 
         if (boothLights != null)
@@ -264,6 +268,11 @@ public class BoothProp : MonoBehaviour, IInteractable
         if (other.CompareTag("Player"))
         {
             playerInZone = false;
+            if (rearmOnExit)
+            {
+                rearmOnExit = false;
+                hasTriggered = false;
+            }
             Debug.Log("[BoothProp] Player exited booth zone");
         }
     }

@@ -44,8 +44,13 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
     private float lastInteractTime = 0f;
     private float interactCooldown = 1f;
 
+    private PropHighlight propHighlight;
+
     private void Awake()
     {
+        // Optional richer highlight effect on the same prop
+        propHighlight = GetComponent<PropHighlight>();
+
         // Cache renderer
         propRenderer = GetComponent<Renderer>();
         propBlock = new MaterialPropertyBlock();
@@ -150,6 +155,11 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         {
             glowLight.enabled = true;
         }
+
+        if (propHighlight != null)
+        {
+            propHighlight.SetHighlighted(true);
+        }
     }
 
     /// <summary>
@@ -172,6 +182,11 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         if (glowLight != null)
         {
             glowLight.enabled = false;
+        }
+
+        if (propHighlight != null)
+        {
+            propHighlight.SetHighlighted(false);
         }
     }
 

@@ -1,15 +1,14 @@
 🔮 Cursed Portal – Poe Parlor: AI-Generated Complete Unity Project
-Target: Unity 2023.2 LTS (URP) | Local LLM: Ollama (default) or llama.cpp
+Target: Unity 2023.2.20f1 (URP) | Local LLM: Ollama (default) or llama.cpp
 This is the design specification for the project, generated sequentially per spec (M1-M25). Note: The code samples below reflect the original specification and may differ from the current codebase (e.g., managers now use `SingletonBase<T>` instead of copy-paste singletons, default LLM backend is Ollama on port 11434, and VoiceSynth.cs has been removed). Always refer to the actual source files for current implementation.
 🚀 Quickstart Checklist
 
 Project Creation:
-Unity Hub → New Project → 3D (URP) → Name: CursedPortal → Create.
-Unity Editor: Window > Package Manager:PackageSourceTextMeshProUnity Registry → Import TMP EssentialsCinemachineUnity Registry → InstallUniversal RPAlready installedLLMUnity+ → Add from Git: https://github.com/undreamai/LLMUnity.git
+Open this repository in Unity Hub with Unity 2023.2.20f1 (packages resolve from Packages/manifest.json; TextMesh Pro is part of uGUI 2.0, and no Unity LLM package is used). Then run CursedPortal > Setup Main Scene and CursedPortal > Create OtherDimension Scene (see README.md).
 
 LLM Backend Setup (Local, Free):
 Option A (default): Install Ollama (https://ollama.com), then `ollama pull llama3.2:3b` and `ollama serve`. Runs on localhost:11434.
-Option B: Download/run llama.cpp server (e.g., Llama 3.2 3B GGUF). Start server: ./server -m llama3.2-3b.gguf --host 0.0.0.0 --port 8080. Set LLMManager backend to LlamaCpp in the Inspector.
+Option B: Download/run llama.cpp server (e.g., Llama 3.2 3B GGUF). Start server: llama-server -m llama3.2-3b.gguf --host 127.0.0.1 --port 8080. Set LLMManager backend to LlamaCpp in the Inspector.
 
 Poe Texts (Public Domain):
 Create folder Assets/StreamingAssets/PoeStories/

@@ -47,6 +47,9 @@ public class PropHighlight : MonoBehaviour
     private Material[] highlightMaterials;
     private GameObject outlineObject;
 
+    private Color[] originalEmission;
+    private bool ownsOutlineMaterial = false;
+
     private void Start()
     {
         originalScale = transform.localScale;
@@ -71,17 +74,22 @@ public class PropHighlight : MonoBehaviour
 
         originalMaterials = new Material[renderers.Length];
         highlightMaterials = new Material[renderers.Length];
+        originalEmission = new Color[renderers.Length];
 
         for (int i = 0; i < renderers.Length; i++)
         {
-            if (renderers[i] != null)
+            // sharedMaterial: reading .material would create (and leak) an instance per renderer
+            if (renderers[i] != null && renderers[i].sharedMaterial != null)
             {
-                originalMaterials[i] = renderers[i].material;
+                originalMaterials[i] = renderers[i].sharedMaterial;
                 highlightMaterials[i] = new Material(originalMaterials[i]);
 
-                // Enable emission keyword
+                // Enable emission keyword, keeping any emission the material already had
                 if (highlightMaterials[i].HasProperty(emissionProperty))
                 {
+                    originalEmission[i] = highlightMaterials[i].IsKeywordEnabled("_EMISSION")
+                        ? highlightMaterials[i].GetColor(emissionProperty)
+                        : Color.black;
                     highlightMaterials[i].EnableKeyword("_EMISSION");
                 }
             }
@@ -95,12 +103,16 @@ public class PropHighlight : MonoBehaviour
     {
         if (outlineMaterial == null)
         {
-            // Create simple outline material
-            outlineMaterial = new Material(Shader.Find("Unlit/Color"));
-            if (outlineMaterial != null)
+            // Create simple outline material (the shader may be stripped from builds; assign a material instead)
+            Shader shader = Shader.Find("Unlit/Color");
+            if (shader == null)
             {
-                outlineMaterial.color = outlineColor;
+                Debug.LogWarning("[PropHighlight] No outline material assigned and 'Unlit/Color' is unavailable; outline disabled.");
+                return;
             }
+            outlineMaterial = new Material(shader);
+            outlineMaterial.color = outlineColor;
+            ownsOutlineMaterial = true;
         }
 
         // Create outline object
@@ -159,17 +171,27 @@ public class PropHighlight : MonoBehaviour
     {
         if (highlightMaterials == null) return;
 
-        Color emissionColor = highlightColor * currentIntensity;
+        // Swap materials only when the highlight starts or fully fades, not every frame
+        bool showHighlight = currentIntensity > 0.01f;
 
         for (int i = 0; i < renderers.Length; i++)
         {
-            if (renderers[i] != null && highlightMaterials[i] != null)
+            if (renderers[i] == null || highlightMaterials[i] == null) continue;
+
+            if (showHighlight)
             {
                 if (highlightMaterials[i].HasProperty(emissionProperty))
                 {
-                    highlightMaterials[i].SetColor(emissionProperty, emissionColor);
+                    highlightMaterials[i].SetColor(emissionProperty, originalEmission[i] + highlightColor * currentIntensity);
                 }
-                renderers[i].material = highlightMaterials[i];
+                if (renderers[i].sharedMaterial != highlightMaterials[i])
+                {
+                    renderers[i].sharedMaterial = highlightMaterials[i];
+                }
+            }
+            else if (renderers[i].sharedMaterial != originalMaterials[i])
+            {
+                renderers[i].sharedMaterial = originalMaterials[i];
             }
         }
     }
@@ -259,6 +281,18 @@ public class PropHighlight : MonoBehaviour
 
     private void OnDestroy()
     {
+        // Put the original materials back before destroying the highlight copies
+        if (renderers != null && originalMaterials != null)
+        {
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null && originalMaterials[i] != null)
+                {
+                    renderers[i].sharedMaterial = originalMaterials[i];
+                }
+            }
+        }
+
         // Cleanup created materials
         if (highlightMaterials != null)
         {
@@ -271,7 +305,7 @@ public class PropHighlight : MonoBehaviour
             }
         }
 
-        if (outlineMaterial != null)
+        if (ownsOutlineMaterial && outlineMaterial != null)
         {
             Destroy(outlineMaterial);
         }

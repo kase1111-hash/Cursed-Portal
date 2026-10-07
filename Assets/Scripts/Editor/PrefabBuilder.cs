@@ -27,16 +27,16 @@ public static class PrefabBuilder
 
         // Build prefabs
         BuildManagerPrefab();
-        BuildPropPrefab("CrystalBall", "Raven", PrimitiveType.Sphere, new Vector3(0.5f, 0.5f, 0.5f));
-        BuildPropPrefab("Mirror", "Narrator", PrimitiveType.Quad, new Vector3(2f, 3f, 0.1f));
-        BuildPropPrefab("Booth", "Usher", PrimitiveType.Cube, new Vector3(2f, 2.5f, 2f));
-        BuildPropPrefab("Table", "Raven", PrimitiveType.Cube, new Vector3(2f, 0.8f, 1f));
+        BuildAllPropPrefabs();
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
         Debug.Log("[PrefabBuilder] All prefabs generated successfully!");
-        EditorUtility.DisplayDialog("Prefab Builder", "All Cursed Portal prefabs have been generated!", "OK");
+        if (!Application.isBatchMode)
+        {
+            EditorUtility.DisplayDialog("Prefab Builder", "All Cursed Portal prefabs have been generated!", "OK");
+        }
     }
 
     [MenuItem("CursedPortal/Build Managers Prefab Only", false, 11)]
@@ -52,42 +52,38 @@ public static class PrefabBuilder
     public static void BuildPropsOnly()
     {
         EnsureDirectoryExists(PROPS_PATH);
-        BuildPropPrefab("CrystalBall", "Raven", PrimitiveType.Sphere, new Vector3(0.5f, 0.5f, 0.5f));
-        BuildPropPrefab("Mirror", "Narrator", PrimitiveType.Quad, new Vector3(2f, 3f, 0.1f));
-        BuildPropPrefab("Booth", "Usher", PrimitiveType.Cube, new Vector3(2f, 2.5f, 2f));
-        BuildPropPrefab("Table", "Raven", PrimitiveType.Cube, new Vector3(2f, 0.8f, 1f));
+        BuildAllPropPrefabs();
         AssetDatabase.SaveAssets();
         Debug.Log("[PrefabBuilder] Props prefabs generated!");
     }
 
+    private static void BuildAllPropPrefabs()
+    {
+        // Mirror is a thin box rather than a Quad (one-sided, and its collider is a flat mesh)
+        BuildPropPrefab("CrystalBall", "Raven", PrimitiveType.Sphere, new Vector3(0.35f, 0.35f, 0.35f));
+        BuildPropPrefab("Mirror", "Narrator", PrimitiveType.Cube, new Vector3(0.05f, 2f, 1.2f));
+        BuildPropPrefab("Booth", "Usher", PrimitiveType.Cube, new Vector3(1.4f, 2.2f, 1.4f));
+    }
+
     /// <summary>
-    /// Builds the Managers prefab containing all singleton managers.
+    /// Builds the Managers prefab containing all persistent (DontDestroyOnLoad) managers on one root.
+    /// Place it only in the parlor scene: a second copy in another scene destroys itself on load.
     /// </summary>
     private static void BuildManagerPrefab()
     {
         GameObject managersGO = new GameObject("Managers");
 
-        // Add all manager components
-        managersGO.AddComponent<LLMManager>();
-        managersGO.AddComponent<LLMStreamManager>();
+        // Add all manager components (the same set SceneSetup uses)
+        managersGO.AddComponent<GameManager>();
         managersGO.AddComponent<EventManager>();
         managersGO.AddComponent<RitualLoop>();
+        managersGO.AddComponent<LLMManager>();
+        managersGO.AddComponent<LLMStreamManager>();
+        managersGO.AddComponent<CursorManager>();
         managersGO.AddComponent<PortalSequence>();
-
-        // Create child for Audio
-        GameObject audioGO = new GameObject("AudioManager");
-        audioGO.transform.SetParent(managersGO.transform);
-        audioGO.AddComponent<AudioManager>();
-
-        // Create child for VFX
-        GameObject vfxGO = new GameObject("VFXManager");
-        vfxGO.transform.SetParent(managersGO.transform);
-        vfxGO.AddComponent<VFXManager>();
-
-        // Create child for PostFX
-        GameObject postfxGO = new GameObject("PostFXController");
-        postfxGO.transform.SetParent(managersGO.transform);
-        postfxGO.AddComponent<PostFXController>();
+        managersGO.AddComponent<AudioManager>();
+        managersGO.AddComponent<VFXManager>();
+        managersGO.AddComponent<PostFXController>();
 
         // Save as prefab
         string prefabPath = MANAGERS_PATH + "Managers.prefab";
@@ -110,23 +106,25 @@ public static class PrefabBuilder
         // Set layer (create "Interactable" layer if needed)
         // propGO.layer = LayerMask.NameToLayer("Interactable");
 
-        // Add InteractableSpirit component
-        InteractableSpirit spirit = propGO.AddComponent<InteractableSpirit>();
-
-        // Configure via serialized field (requires reflection or manual setup in editor)
-        // For now, just log that it needs manual configuration
-        Debug.Log($"[PrefabBuilder] {name}: Set spiritKey to '{spiritKey}' in Inspector");
+        // Emission-enabled material so the highlight (which sets _EmissionColor) is visible
+        propGO.GetComponent<Renderer>().sharedMaterial =
+            SceneSetup.CreateLitMaterial($"Prop_{name}", new Color(0.3f, 0.22f, 0.35f), 0.6f, true);
 
         // Add point light for glow effect
         GameObject lightGO = new GameObject("GlowLight");
-        lightGO.transform.SetParent(propGO.transform);
+        lightGO.transform.SetParent(propGO.transform, false);
         lightGO.transform.localPosition = Vector3.up * 0.5f;
         Light light = lightGO.AddComponent<Light>();
         light.type = LightType.Point;
         light.range = 3f;
-        light.intensity = 0.5f;
+        light.intensity = 1.5f;
         light.color = new Color(0.5f, 0.3f, 0.8f); // Purple glow
         light.enabled = false; // Disabled by default, enabled on highlight
+
+        // Add InteractableSpirit component, bound to its spirit and glow light
+        InteractableSpirit spirit = propGO.AddComponent<InteractableSpirit>();
+        CursedPortalEditorUtil.SetString(spirit, "spiritKey", spiritKey);
+        CursedPortalEditorUtil.SetRef(spirit, "glowLight", light);
 
         // Save as prefab
         string prefabPath = PROPS_PATH + name + ".prefab";

@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Project documentation and ecosystem links
 - SEO keywords and related repository connections
+- `SetupURP` (CursedPortal > Configure URP Render Pipeline) and `CursedPortalBuild` (menu and `-executeMethod` builds)
+- Scene generators now save `Assets/Scenes/CursedPortal.unity` / `OtherDimension.unity`, register them in Build Settings, and wire every reference (chat UI, EventSystem, HUD prompt, screen effects, debug panels, VFX, volume profiles, FinaleManager, player camera)
+
+### Fixed
+- Compile errors: `[Header]` on a property (CS0592), nonexistent `PrimitiveType.Torus`
+- Package manifest: LLMUnity entry whose name didn't match its repo (blocked package resolution), redundant TextMesh Pro and unused Input System packages; legacy input handler pinned
+- No URP pipeline asset was assigned (post-processing did nothing, URP materials were magenta)
+- LLM streaming: JSON lines split across reads, dropped short tokens, total timeout cutting off slow replies, cancelled streams clobbering their replacement, Ollama options ignored, server errors not shown
+- Typing "e" in the chat re-triggered the prop and could fire the breach mid-sentence
+- Finale could not end (no FinaleManager, camera or TMP epilogue text), epilogue typewriter/awaken races
+- Spook effects stuck after the level dropped; breach reached after ~3 replies (greetings and repeat summons no longer escalate)
+- Many runtime issues in audio/VFX, player controller, props, UI and editor tools (see commit history)
+- `.gitignore` no longer ignores `*.cs.meta`, TMP resources or `packages-lock.json`; `DynamicsManager.asset` file name
 
 ## [1.0.0] - 2026-01-22
 

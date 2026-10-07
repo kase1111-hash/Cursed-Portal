@@ -37,6 +37,44 @@ public static class CursedPortalEditorUtil
         AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
     }
 
+    /// <summary>
+    /// A radial vignette sprite (transparent centre, opaque edges) for the screen-edge pulse overlays.
+    /// Generated once as a PNG asset.
+    /// </summary>
+    public static Sprite VignetteSprite()
+    {
+        const string folder = "Assets/Materials/Generated";
+        const string path = folder + "/Vignette.png";
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (existing != null) return existing;
+
+        EnsureFolder(folder);
+        const int size = 256;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f;
+                float dy = (y + 0.5f) / size * 2f - 1f;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy) / 1.41421f; // 0 centre .. 1 corners
+                float alpha = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 1f, distance));
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        texture.Apply();
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(path);
+        TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
     // ---------------------------------------------------------------- serialized fields
 
     /// <summary>

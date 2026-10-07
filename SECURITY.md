@@ -45,7 +45,7 @@ Security concerns relevant to this project include:
 ### Out of Scope
 
 - Vulnerabilities in Unity itself (report to Unity)
-- Issues with LLMUnity package (report to that project)
+- Issues with Ollama or llama.cpp themselves (report to those projects)
 - Ollama/llama.cpp vulnerabilities (report to those projects)
 
 ## Security Best Practices for Users

@@ -44,8 +44,18 @@ public class MirrorProp : MonoBehaviour, IInteractable
 
     private void Start()
     {
+        // Always work on our own instance: editing an assigned asset would change it on disk (in the
+        // editor) and destroying it in OnDestroy would delete a project asset
         mirrorRenderer = GetComponent<Renderer>();
-        if (mirrorRenderer != null && mirrorMaterial == null)
+        if (mirrorMaterial != null)
+        {
+            mirrorMaterial = new Material(mirrorMaterial);
+            if (mirrorRenderer != null)
+            {
+                mirrorRenderer.material = mirrorMaterial;
+            }
+        }
+        else if (mirrorRenderer != null)
         {
             mirrorMaterial = mirrorRenderer.material;
         }
@@ -75,6 +85,13 @@ public class MirrorProp : MonoBehaviour, IInteractable
     private void UpdateGazeDetection()
     {
         if (!useGazeDetection || hasTriggeredGaze) return;
+
+        // The camera is frozen on the mirror while chatting with the Narrator; that isn't staring
+        if (UIChat.Instance != null && UIChat.Instance.IsVisible())
+        {
+            gazeTimer = Mathf.Max(0f, gazeTimer - Time.deltaTime);
+            return;
+        }
 
         // Check if camera is looking at mirror
         if (Camera.main != null)
