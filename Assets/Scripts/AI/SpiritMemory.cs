@@ -137,8 +137,18 @@ public class SpiritMemory
                 Directory.CreateDirectory(directory);
             }
 
+            // Write to a temp file first so a crash mid-write can't wipe the existing memory
             string json = JsonUtility.ToJson(memory, true);
-            File.WriteAllText(path, json);
+            string tempPath = path + ".tmp";
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(path))
+            {
+                File.Replace(tempPath, path, null);
+            }
+            else
+            {
+                File.Move(tempPath, path);
+            }
 
             Debug.Log($"[SpiritMemory] Saved memory for {memory.spiritName} ({memory.totalInteractions} interactions)");
         }

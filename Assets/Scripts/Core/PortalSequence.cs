@@ -76,7 +76,7 @@ public class PortalSequence : SingletonBase<PortalSequence>
         }
         if (UIChat.Instance != null)
         {
-            UIChat.Instance.Hide();
+            UIChat.Instance.SetLocked(true);
         }
 
         StartCoroutine(BreachSequence());
@@ -273,6 +273,11 @@ public class PortalSequence : SingletonBase<PortalSequence>
 
         isTransitioning = false;
 
+        if (UIChat.Instance != null)
+        {
+            UIChat.Instance.SetLocked(false);
+        }
+
         // Drop back below the breach so it can trigger again once the scene is fixed
         if (EventManager.Instance != null)
         {
@@ -360,6 +365,21 @@ public class PortalSequence : SingletonBase<PortalSequence>
         if (!isTransitioning)
         {
             Debug.Log("[PortalSequence] Debug skip to OtherDimension");
+
+            // Same cleanup as a real breach (the chat would otherwise keep the cursor unlocked)
+            if (LLMStreamManager.Instance != null)
+            {
+                LLMStreamManager.Instance.CancelStream();
+            }
+            if (UIChat.Instance != null)
+            {
+                UIChat.Instance.SetLocked(true);
+            }
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.FadeOutAll(0.1f);
+            }
+
             SceneManager.LoadScene(targetSceneName);
         }
     }

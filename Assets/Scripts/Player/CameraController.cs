@@ -88,17 +88,27 @@ public class CameraController : SceneSingletonBase<CameraController>
 
     private void Update()
     {
+        // Shake and FOV keep running while the chat is open (spook shakes usually land mid-conversation)
+        HandleFOV();
+        HandleShake();
+
         if (!canLook) return;
 
-        // Don't process look input if chat is open
+        // Don't process look input if chat or a debug panel has the cursor, or the portal is taking the player
         if (UIChat.Instance != null && UIChat.Instance.IsVisible())
+        {
+            return;
+        }
+        if (CursorManager.Instance != null && !CursorManager.Instance.IsCursorLocked())
+        {
+            return;
+        }
+        if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
         {
             return;
         }
 
         HandleMouseLook();
-        HandleFOV();
-        HandleShake();
     }
 
     private void LateUpdate()
@@ -192,7 +202,7 @@ public class CameraController : SceneSingletonBase<CameraController>
     /// <summary>
     /// Triggers camera shake.
     /// </summary>
-    /// <param name="intensity">Shake intensity</param>
+    /// <param name="intensity">Shake intensity in degrees of jitter</param>
     /// <param name="duration">Duration (affects decay rate)</param>
     public void Shake(float intensity, float duration = 0.5f)
     {

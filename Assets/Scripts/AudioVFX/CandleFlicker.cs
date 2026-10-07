@@ -51,6 +51,10 @@ public class CandleFlicker : MonoBehaviour
         targetLight.color = baseColor;
     }
 
+    // Set while DramaticFlicker runs (-1 = none)
+    private float intensityOverride = -1f;
+    private Coroutine dramaticFlickerCoroutine;
+
     private void Start()
     {
         if (respondToSpook && EventManager.Instance != null)
@@ -93,6 +97,13 @@ public class CandleFlicker : MonoBehaviour
         currentIntensity = Mathf.Lerp(currentIntensity, targetIntensity, smoothing * Time.deltaTime);
         targetLight.intensity = currentIntensity;
 
+        // A dramatic flicker in progress overrides the normal flicker
+        if (intensityOverride >= 0f)
+        {
+            targetLight.intensity = intensityOverride;
+            return;
+        }
+
         // Random brief flicker (sputter)
         if (Random.value < 0.002f * (1f + currentSpookLevel))
         {
@@ -124,10 +135,14 @@ public class CandleFlicker : MonoBehaviour
     {
         currentSpookLevel = level;
 
-        // Dramatic flicker on level change
+        // Dramatic flicker on level change (restart rather than overlap)
         if (level > 0)
         {
-            StartCoroutine(DramaticFlicker());
+            if (dramaticFlickerCoroutine != null)
+            {
+                StopCoroutine(dramaticFlickerCoroutine);
+            }
+            dramaticFlickerCoroutine = StartCoroutine(DramaticFlicker());
         }
     }
 
@@ -138,23 +153,24 @@ public class CandleFlicker : MonoBehaviour
     {
         float originalBase = baseIntensity;
 
-        // Quick flickers
+        // Quick flickers (applied through the override so UpdateFlicker doesn't erase them next frame)
         for (int i = 0; i < 3; i++)
         {
-            targetLight.intensity = originalBase * 0.2f;
+            intensityOverride = originalBase * 0.2f;
             yield return new WaitForSeconds(0.05f);
-            targetLight.intensity = originalBase * 1.5f;
+            intensityOverride = originalBase * 1.5f;
             yield return new WaitForSeconds(0.05f);
         }
 
         // Brief blackout at high spook
         if (currentSpookLevel >= 4)
         {
-            targetLight.intensity = 0f;
+            intensityOverride = 0f;
             yield return new WaitForSeconds(0.3f);
         }
 
-        targetLight.intensity = originalBase;
+        intensityOverride = -1f;
+        dramaticFlickerCoroutine = null;
     }
 
     /// <summary>

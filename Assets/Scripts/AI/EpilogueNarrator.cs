@@ -109,10 +109,8 @@ public class EpilogueNarrator : MonoBehaviour
             promptBuilder.AppendLine($"Reference the {totalMemories} past hauntings in your farewell.");
         }
 
-        // Get player name (system username as proxy)
-        string playerName = System.Environment.UserName;
-        if (string.IsNullOrEmpty(playerName)) playerName = "Mortal";
-        promptBuilder.AppendLine($"Address the mortal as '{playerName}' once, if fitting.");
+        // Don't send the OS account name to the LLM endpoint; it is often not a name anyway
+        promptBuilder.AppendLine("Address the player as 'mortal'.");
 
         return promptBuilder.ToString();
     }

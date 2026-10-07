@@ -29,14 +29,18 @@ public class CursorManager : SingletonBase<CursorManager>
         }
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void Update()
     {
-        // Emergency unlock with Alt key (for development)
-        if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
+        // Emergency unlock with Alt key (development only: in a release build every Alt+Tab would flip the lock).
+        // Ignored when Ctrl is held, since AltGr arrives as Ctrl+RightAlt when typing characters like '@'.
+        bool ctrlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+        if (!ctrlHeld && (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt)))
         {
             ToggleCursor();
         }
     }
+#endif
 
     /// <summary>
     /// Locks the cursor (invisible, confined to center).

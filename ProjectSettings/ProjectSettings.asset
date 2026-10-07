@@ -148,33 +148,9 @@ PlayerSettings:
   bakeCollisionMeshes: 0
   forceSRGBBlit: 1
   enableOpenGLProfilerGPURecorders: 1
-  m_Logging:
-    Debug: 1
-    Info: 1
-    Warning: 1
-    Error: 1
-    Fatal: 1
-  m_BuildTargetGroupRenderPipeline:
-  - m_BuildTarget: Standalone
-    m_RenderPipeline: {fileID: 0}
-  m_GraphicsAPIs:
-  - Standalone:
-    - 2
-    - 15
-  m_ScriptingRuntimeVersion: 1
-  m_ScriptingBackend:
-    Standalone: 1
-  m_IL2CPPCompilerConfiguration:
-    Standalone: 0
-  m_ManagedStrippingLevel:
-    Standalone: 1
-  incrementalIl2cppBuild:
-    Standalone: 0
+  incrementalIl2cppBuild: {}
   allowUnsafeCode: 0
   useDeterministicCompilation: 1
-  m_ScriptingDefineSymbols: {}
-  m_AdditionalCompilerArguments: {}
-  m_PlatformArchitecture: {}
   scriptingDefineSymbols: {}
   apiCompatibilityLevelPerPlatform:
     Standalone: 3
@@ -183,6 +159,5 @@ PlayerSettings:
   m_MobileRenderingPath: 1
   bundleVersion: 0.1.0
   preloadedAssets: []
-  m_GraphicsJobsMode: 0
   activeInputHandler: 0
   insecureHttpOption: 2

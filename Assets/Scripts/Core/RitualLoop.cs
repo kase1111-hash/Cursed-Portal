@@ -2,6 +2,7 @@
 // Source: Module M17
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Global system coordinator that orchestrates emotion, VFX, and sound per frame.
@@ -26,6 +27,14 @@ public class RitualLoop : SingletonBase<RitualLoop>
     // Target values for smooth transitions
     private float targetFogDensity = 0.01f;
     private float targetAudioVolume = 0.3f;
+
+    // The scene the ritual runs in; RitualLoop persists across scenes but only drives the parlor's fog
+    private string parlorSceneName;
+
+    private void Start()
+    {
+        parlorSceneName = SceneManager.GetActiveScene().name;
+    }
 
     private void Update()
     {
@@ -89,6 +98,8 @@ public class RitualLoop : SingletonBase<RitualLoop>
         if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
             return;
         if (FinaleManager.Instance != null)
+            return;
+        if (SceneManager.GetActiveScene().name != parlorSceneName)
             return;
 
         // Smooth fog transition
@@ -204,10 +215,7 @@ public class RitualLoop : SingletonBase<RitualLoop>
         }
 
         // Update portal distortion
-        if (PortalDistort.Instance != null)
-        {
-            PortalDistort.Instance.SetEmotion(emotion);
-        }
+        PortalDistort.SetEmotionAll(emotion);
     }
 
     /// <summary>

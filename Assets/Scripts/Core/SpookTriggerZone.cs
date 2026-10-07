@@ -138,7 +138,8 @@ public class SpookTriggerZone : MonoBehaviour
             }
             else if (CameraController.Instance != null)
             {
-                CameraController.Instance.Shake(shakeIntensity);
+                // CameraController shakes in degrees; CameraShake intensity is 0-1 trauma (up to ~10 degrees)
+                CameraController.Instance.Shake(shakeIntensity * 10f);
             }
         }
 

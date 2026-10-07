@@ -3,6 +3,7 @@
 
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
 using System.Collections;
 using System.Text;
 
@@ -34,6 +35,23 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     private int streamGeneration = 0; // Incremented per stream so a cancelled stream can't clobber its replacement
     private string activeUserMessage = ""; // The user message the current stream is answering
     private string lastReactedEmotion = EmotionParser.NEUTRAL; // Emotion already reacted to during this stream
+    private bool escalateOnComplete = false; // Whether a dark reply may raise the spook level
+    private bool serverErrored = false; // The server reported an error mid-stream
+
+    protected override void Awake()
+    {
+        base.Awake();
+        if (Instance == this)
+        {
+            // A reply must never carry over into another scene
+            SceneManager.activeSceneChanged += OnActiveSceneChanged;
+        }
+    }
+
+    private void OnActiveSceneChanged(Scene previous, Scene next)
+    {
+        CancelStream();
+    }
 
     /// <summary>
     /// Starts streaming a spirit's response, cancelling any stream already in flight.
@@ -41,7 +59,8 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     /// </summary>
     /// <param name="systemContext">The system prompt and context</param>
     /// <param name="userMessage">The user's message</param>
-    public void StartStream(string systemContext, string userMessage)
+    /// <param name="escalate">Whether a dark reply may raise the spook level (false for greetings)</param>
+    public void StartStream(string systemContext, string userMessage, bool escalate = true)
     {
         lock (streamLock)
         {
@@ -51,6 +70,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 CancelStreamInternal();
             }
         }
+        escalateOnComplete = escalate;
         currentOuterCoroutine = StartCoroutine(StreamSpiritSpeech(systemContext, userMessage));
     }
 
@@ -72,6 +92,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
             generation = ++streamGeneration;
             activeUserMessage = userMessage ?? "";
             lastReactedEmotion = EmotionParser.NEUTRAL;
+            serverErrored = false;
         }
 
         Debug.Log("[LLMStreamManager] Starting stream...");
@@ -230,8 +251,11 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                     yield return StartCoroutine(ProcessStreamChunk(finalChunk, fullResponse));
                 }
 
-                // Finalize response
-                OnStreamComplete(fullResponse.ToString());
+                // Finalize response (an error reported mid-stream was already shown; don't save it as a reply)
+                if (!serverErrored)
+                {
+                    OnStreamComplete(fullResponse.ToString());
+                }
             }
             else
             {
@@ -363,6 +387,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 {
                     // Ollama can report a failure mid-stream with HTTP 200
                     Debug.LogError($"[LLMStreamManager] LLM server error: {ollamaResp.error}");
+                    serverErrored = true;
                     OnStreamError(ollamaResp.error);
                     continue;
                 }
@@ -421,8 +446,8 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
         EmotionAnalysis analysis = EmotionParser.AnalyzeDetailed(fullResponse);
         Debug.Log($"[LLMStreamManager] {analysis}");
 
-        // Increment spook based on overall intensity
-        if (EventManager.Instance != null && analysis.intensity > 0.3f)
+        // Increment spook based on overall intensity (replies to the player's own words only)
+        if (escalateOnComplete && EventManager.Instance != null && analysis.intensity > 0.3f)
         {
             EventManager.Instance.IncrementSpook(1);
         }
@@ -436,7 +461,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
         // Notify completion
         if (UIChat.Instance != null)
         {
-            UIChat.Instance.AppendSystem("\n*The spirit's voice fades...*");
+            UIChat.Instance.AppendSystem("*The spirit's voice fades...*");
         }
     }
 
@@ -559,6 +584,11 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 
     protected override void OnDestroy()
     {
+        if (Instance == this)
+        {
+            SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+        }
+
         // Cancel any active stream before cleanup
         CancelStream();
         base.OnDestroy();

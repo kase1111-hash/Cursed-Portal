@@ -214,10 +214,7 @@ public class EventManager : SingletonBase<EventManager>
         }
 
         // Update portal distortion if available
-        if (PortalDistort.Instance != null)
-        {
-            PortalDistort.Instance.SetEmotion(emotion);
-        }
+        PortalDistort.SetEmotionAll(emotion);
     }
 
     /// <summary>
@@ -243,7 +240,8 @@ public class EventManager : SingletonBase<EventManager>
         }
         else if (CameraController.Instance != null)
         {
-            CameraController.Instance.Shake(intensity, duration);
+            // CameraController shakes in degrees; CameraShake intensity is 0-1 trauma (up to ~10 degrees)
+            CameraController.Instance.Shake(intensity * 10f, duration);
         }
     }
 

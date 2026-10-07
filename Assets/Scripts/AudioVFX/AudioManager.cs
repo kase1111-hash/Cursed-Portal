@@ -19,6 +19,10 @@ public class AudioManager : SingletonBase<AudioManager>
     [Header("Whisper Clips (by spook level 0-5)")]
     [SerializeField] private AudioClip[] whisperClips;
 
+    [Header("Ambience")]
+    [Tooltip("Optional looping room tone played on the ambient source")]
+    [SerializeField] private AudioClip ambientClip;
+
     [Header("Sound Effects")]
     [SerializeField] private AudioClip heartbeatClip;
     [SerializeField] private AudioClip mirrorCrackClip;
@@ -33,10 +37,15 @@ public class AudioManager : SingletonBase<AudioManager>
 
     // Current state
     private int currentWhisperLevel = 0;
+    private float nextStreamWhisperTime = 0f;
+    private bool warnedNoWhispers = false;
 
-    private void Start()
+    protected override void Awake()
     {
-        // Initialize audio sources if not assigned
+        base.Awake();
+        if (Instance != this) return;
+
+        // Create sources in Awake: other managers' Start (e.g. EventManager) may play audio before our Start runs
         if (ambientSource == null)
         {
             ambientSource = CreateAudioSource("AmbientSource", true);
@@ -52,6 +61,16 @@ public class AudioManager : SingletonBase<AudioManager>
         if (whisperSource == null)
         {
             whisperSource = CreateAudioSource("WhisperSource", true);
+        }
+    }
+
+    private void Start()
+    {
+        if (ambientClip != null && ambientSource != null)
+        {
+            ambientSource.clip = ambientClip;
+            ambientSource.volume = 0.2f;
+            ambientSource.Play();
         }
 
         // Start baseline ambience
@@ -79,9 +98,16 @@ public class AudioManager : SingletonBase<AudioManager>
     /// <param name="level">Spook level (0-5)</param>
     public void PlayWhispers(int level)
     {
+        if (whisperSource == null) return;
+
         if (whisperClips == null || whisperClips.Length == 0)
         {
-            Debug.LogWarning("[AudioManager] No whisper clips configured");
+            // The repo ships no audio; say so once instead of on every level change
+            if (!warnedNoWhispers)
+            {
+                Debug.LogWarning("[AudioManager] No whisper clips configured (assign them on the AudioManager)");
+                warnedNoWhispers = true;
+            }
             return;
         }
 
@@ -207,9 +233,13 @@ public class AudioManager : SingletonBase<AudioManager>
     /// <param name="chunk">Text chunk from LLM response</param>
     public void StreamWhisper(string chunk)
     {
-        // Trigger a brief whisper burst for each chunk
+        // Trigger a brief whisper burst, at most every 0.6 s (tokens arrive many times per second)
+        if (Time.time < nextStreamWhisperTime) return;
+
         if (voiceSource != null && whisperClips != null && whisperClips.Length > 0)
         {
+            nextStreamWhisperTime = Time.time + 0.6f;
+
             // Play a short whisper clip with randomized pitch
             int clipIndex = Mathf.Min(currentWhisperLevel, whisperClips.Length - 1);
             if (whisperClips[clipIndex] != null)

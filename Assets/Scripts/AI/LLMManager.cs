@@ -51,6 +51,10 @@ public class LLMManager : SingletonBase<LLMManager>
     private System.Collections.Generic.Dictionary<string, string> cachedStories =
         new System.Collections.Generic.Dictionary<string, string>();
 
+    // Spirits summoned this session (the first summon of each one raises the dread)
+    private readonly System.Collections.Generic.HashSet<string> summonedSpirits =
+        new System.Collections.Generic.HashSet<string>();
+
     // On WebGL and Android, StreamingAssets is a URL and must be read with UnityWebRequest
     private static bool StreamingAssetsIsUrl => Application.streamingAssetsPath.Contains("://");
 
@@ -224,6 +228,13 @@ public class LLMManager : SingletonBase<LLMManager>
     /// <param name="userMessage">What the player said; null when the spirit is summoned by a prop or zone</param>
     public void SummonSpirit(string spiritKey, string userMessage = null)
     {
+        // The conversation is over once the breach has begun
+        if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
+        {
+            Debug.Log($"[LLMManager] Ignoring summon of {spiritKey} during the portal transition");
+            return;
+        }
+
         SpiritProfile profile = GetProfile(spiritKey);
         if (profile == null)
         {
@@ -243,8 +254,10 @@ public class LLMManager : SingletonBase<LLMManager>
         // Build context with story and system prompt
         string context = BuildContext(profile);
 
-        // A summon without words (prop, trigger zone, debug key) opens with a greeting
-        if (string.IsNullOrWhiteSpace(userMessage))
+        // A summon without words (prop, trigger zone, debug key) opens with a greeting;
+        // only replies to what the player actually said escalate the spook level
+        bool playerSpoke = !string.IsNullOrWhiteSpace(userMessage);
+        if (!playerSpoke)
         {
             userMessage = "Who are you?";
         }
@@ -252,7 +265,7 @@ public class LLMManager : SingletonBase<LLMManager>
         // Start streaming response
         if (LLMStreamManager.Instance != null)
         {
-            LLMStreamManager.Instance.StartStream(context, userMessage);
+            LLMStreamManager.Instance.StartStream(context, userMessage, playerSpoke);
         }
         else
         {
@@ -448,6 +461,14 @@ public class LLMManager : SingletonBase<LLMManager>
         SpiritMemory memory = SpiritMemory.Load(ActiveSpirit);
         memory.AddExchange(userMessage, spiritResponse);
         SpiritMemory.Save(memory);
+    }
+
+    /// <summary>
+    /// Records a summon; returns true the first time a spirit is summoned this session.
+    /// </summary>
+    public bool MarkFirstSummon(string spiritKey)
+    {
+        return summonedSpirits.Add(spiritKey);
     }
 
     /// <summary>

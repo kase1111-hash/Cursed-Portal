@@ -38,6 +38,8 @@ public class PostFXController : SingletonBase<PostFXController>
     private ChromaticAberration chromaticAberration;
     private LensDistortion lensDistortion;
     private Bloom bloom;
+    private Coroutine pulseCoroutine;
+    private Coroutine glitchCoroutine;
 
     // Initialization state
     private bool initialized = false;
@@ -64,38 +66,20 @@ public class PostFXController : SingletonBase<PostFXController>
             }
         }
 
-        // Get or add components from profile
+        if (volume.sharedProfile == null)
+        {
+            Debug.LogWarning("[PostFXController] Volume has no profile asset; using a runtime profile.");
+        }
+
+        // volume.profile is this Volume's own runtime copy (never null), so editing it is safe
         VolumeProfile profile = volume.profile;
-        if (profile == null)
-        {
-            Debug.LogError("[PostFXController] Volume has no profile!");
-            return;
-        }
 
-        // Try to get existing components
-        profile.TryGet(out vignette);
-        profile.TryGet(out colorAdjustments);
-        profile.TryGet(out chromaticAberration);
-        profile.TryGet(out lensDistortion);
+        // Get the components, adding any the profile lacks so every effect works
+        if (!profile.TryGet(out vignette)) vignette = profile.Add<Vignette>();
+        if (!profile.TryGet(out colorAdjustments)) colorAdjustments = profile.Add<ColorAdjustments>();
+        if (!profile.TryGet(out chromaticAberration)) chromaticAberration = profile.Add<ChromaticAberration>();
+        if (!profile.TryGet(out lensDistortion)) lensDistortion = profile.Add<LensDistortion>();
         profile.TryGet(out bloom);
-
-        // Verify we have the required components
-        if (vignette == null)
-        {
-            Debug.LogWarning("[PostFXController] Vignette not found in profile. Add it manually in Unity.");
-        }
-        if (colorAdjustments == null)
-        {
-            Debug.LogWarning("[PostFXController] ColorAdjustments not found in profile. Add it manually in Unity.");
-        }
-        if (chromaticAberration == null)
-        {
-            Debug.LogWarning("[PostFXController] ChromaticAberration not found in profile. Add it manually in Unity.");
-        }
-        if (lensDistortion == null)
-        {
-            Debug.LogWarning("[PostFXController] LensDistortion not found in profile. Add it manually in Unity.");
-        }
 
         initialized = true;
         Debug.Log("[PostFXController] Initialized successfully.");
@@ -110,8 +94,11 @@ public class PostFXController : SingletonBase<PostFXController>
     /// <param name="level">Spook level (0-5)</param>
     public void SetLevel(int level)
     {
-        if (!initialized)
+        // Re-bind when the Volume we used was destroyed by a scene change
+        if (!initialized || volume == null)
         {
+            initialized = false;
+            volume = null;
             Initialize();
             if (!initialized) return;
         }
@@ -176,21 +163,25 @@ public class PostFXController : SingletonBase<PostFXController>
     {
         if (vignette != null)
         {
-            StartCoroutine(PulseVignetteCoroutine(intensity, duration));
+            // One pulse at a time; a second one would capture a mid-pulse value as its rest value
+            if (pulseCoroutine != null)
+            {
+                StopCoroutine(pulseCoroutine);
+            }
+            pulseCoroutine = StartCoroutine(PulseVignetteCoroutine(intensity, duration));
         }
     }
 
     private System.Collections.IEnumerator PulseVignetteCoroutine(float targetIntensity, float duration)
     {
-        float originalIntensity = vignette.intensity.value;
         float halfDuration = duration / 2f;
 
-        // Pulse up
+        // Pulse up (from the current level's resting vignette, so level changes mid-pulse are honoured)
         float elapsed = 0f;
         while (elapsed < halfDuration)
         {
             elapsed += Time.deltaTime;
-            vignette.intensity.Override(Mathf.Lerp(originalIntensity, targetIntensity, elapsed / halfDuration));
+            vignette.intensity.Override(Mathf.Lerp(RestingVignette(), targetIntensity, elapsed / halfDuration));
             yield return null;
         }
 
@@ -199,11 +190,17 @@ public class PostFXController : SingletonBase<PostFXController>
         while (elapsed < halfDuration)
         {
             elapsed += Time.deltaTime;
-            vignette.intensity.Override(Mathf.Lerp(targetIntensity, originalIntensity, elapsed / halfDuration));
+            vignette.intensity.Override(Mathf.Lerp(targetIntensity, RestingVignette(), elapsed / halfDuration));
             yield return null;
         }
 
-        vignette.intensity.Override(originalIntensity);
+        vignette.intensity.Override(RestingVignette());
+        pulseCoroutine = null;
+    }
+
+    private float RestingVignette()
+    {
+        return Mathf.Lerp(vignetteMin, vignetteMax, currentLevel / 5f);
     }
 
     /// <summary>
@@ -211,15 +208,18 @@ public class PostFXController : SingletonBase<PostFXController>
     /// </summary>
     public void TriggerGlitch(float duration = 0.5f)
     {
-        StartCoroutine(GlitchCoroutine(duration));
+        if (!initialized) return;
+
+        if (glitchCoroutine != null)
+        {
+            StopCoroutine(glitchCoroutine);
+        }
+        glitchCoroutine = StartCoroutine(GlitchCoroutine(duration));
     }
 
     private System.Collections.IEnumerator GlitchCoroutine(float duration)
     {
         // Enable chromatic aberration and lens distortion temporarily
-        bool chromaWasActive = chromaticAberration?.active ?? false;
-        bool lensWasActive = lensDistortion?.active ?? false;
-
         if (chromaticAberration != null)
         {
             chromaticAberration.active = true;
@@ -233,16 +233,9 @@ public class PostFXController : SingletonBase<PostFXController>
 
         yield return new WaitForSeconds(duration);
 
-        // Restore previous state
-        if (chromaticAberration != null)
-        {
-            chromaticAberration.active = chromaWasActive;
-            chromaticAberration.intensity.Override(currentLevel >= chromaticAberrationLevel ? 0.3f : 0f);
-        }
-        if (lensDistortion != null)
-        {
-            lensDistortion.active = lensWasActive;
-        }
+        // Restore the effects for the current level (it may have changed during the glitch)
+        glitchCoroutine = null;
+        SetLevel(currentLevel);
     }
 
     /// <summary>

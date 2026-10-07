@@ -54,6 +54,12 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
             originalMaterial = propRenderer.sharedMaterial;
         }
 
+        // The generators put the glow light on a child object
+        if (glowLight == null)
+        {
+            glowLight = GetComponentInChildren<Light>(true);
+        }
+
         // Setup glow light
         if (glowLight != null)
         {
@@ -74,6 +80,17 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         }
         lastInteractTime = Time.time;
 
+        // Coming back to the spirit you're already talking to just reopens the chat:
+        // no new greeting (which would cancel the reply in progress) and no extra spook
+        if (LLMManager.Instance != null && LLMManager.Instance.ActiveSpirit == spiritKey)
+        {
+            if (UIChat.Instance != null)
+            {
+                UIChat.Instance.Show();
+            }
+            return;
+        }
+
         Debug.Log($"[InteractableSpirit] Interacted with {gameObject.name}, summoning {spiritKey}");
 
         // Play interaction sound
@@ -93,8 +110,9 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
             LLMManager.Instance.SummonSpirit(spiritKey);
         }
 
-        // Increment spook level
-        if (EventManager.Instance != null)
+        // Increment spook level the first time each spirit is called up (replies to the player raise it further)
+        bool firstSummon = LLMManager.Instance == null || LLMManager.Instance.MarkFirstSummon(spiritKey);
+        if (firstSummon && EventManager.Instance != null)
         {
             EventManager.Instance.IncrementSpook(spookIncrement);
         }
@@ -144,12 +162,10 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         Debug.Log($"[InteractableSpirit] Unhighlighting {gameObject.name}");
 
-        // Clear highlight via MaterialPropertyBlock
+        // Clear highlight: drop the override so the material's own emission shows again
         if (propRenderer != null)
         {
-            propRenderer.GetPropertyBlock(propBlock);
-            propBlock.SetColor(EmissionColor, Color.black);
-            propRenderer.SetPropertyBlock(propBlock);
+            propRenderer.SetPropertyBlock(null);
         }
 
         // Disable glow light

@@ -39,10 +39,10 @@ public class DimensionalLight : MonoBehaviour
 
     private void Start()
     {
-        // Get Light component if not assigned
+        // Get Light component if not assigned (the generators put it on a child of the spirit core)
         if (targetLight == null)
         {
-            targetLight = GetComponent<Light>();
+            targetLight = GetComponentInChildren<Light>();
         }
 
         if (targetLight == null)
@@ -211,6 +211,9 @@ public class DimensionalLight : MonoBehaviour
         }
 
         baseIntensity = 0f;
-        targetLight.enabled = false;
+        if (targetLight != null)
+        {
+            targetLight.enabled = false;
+        }
     }
 }

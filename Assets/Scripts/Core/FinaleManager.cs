@@ -65,8 +65,9 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
 
     private void Update()
     {
-        // Check for awakening input
-        if (epilogueComplete && !playerAwakening && Input.GetKeyDown(KeyCode.E))
+        // Check for awakening input (as soon as the epilogue has been shown, or after the scripted sequence)
+        bool canAwaken = epilogueComplete || (uiEpilogue != null && uiEpilogue.IsDisplayComplete());
+        if (canAwaken && !playerAwakening && Input.GetKeyDown(KeyCode.E))
         {
             StartCoroutine(AwakenSequence());
         }
