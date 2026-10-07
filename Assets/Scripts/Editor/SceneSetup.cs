@@ -497,6 +497,9 @@ public static class SceneSetup
         Image panelImage = panel.gameObject.AddComponent<Image>();
         panelImage.color = new Color(0.04f, 0.02f, 0.06f, 0.85f);
         CanvasGroup group = panel.gameObject.AddComponent<CanvasGroup>();
+        group.alpha = 0f; // hidden until the player opens the chat (UIChat.Start does the same)
+        group.interactable = false;
+        group.blocksRaycasts = false;
 
         // Scrolling log
         GameObject scrollObj = DefaultControls.CreateScrollView(CursedPortalEditorUtil.UIResources());
