@@ -48,8 +48,12 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
     private void Awake()
     {
-        // Optional richer highlight effect on the same prop
+        // Optional richer highlight effect on the same prop (it takes over emission only in emission modes)
         propHighlight = GetComponent<PropHighlight>();
+        if (propHighlight != null)
+        {
+            propHighlight.SetHighlightColor(highlightColor);
+        }
 
         // Cache renderer
         propRenderer = GetComponent<Renderer>();
@@ -149,7 +153,7 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
 
         // Apply highlight via MaterialPropertyBlock (no material instance leak); a PropHighlight on the
         // prop owns the material effect instead (a property block would hide its animated emission)
-        if (propRenderer != null && propHighlight == null)
+        if (propRenderer != null && (propHighlight == null || !propHighlight.DrivesEmission))
         {
             propRenderer.GetPropertyBlock(propBlock);
             propBlock.SetColor(EmissionColor, highlightColor * 0.5f);
@@ -179,7 +183,7 @@ public class InteractableSpirit : MonoBehaviour, IInteractable
         Debug.Log($"[InteractableSpirit] Unhighlighting {gameObject.name}");
 
         // Clear highlight: drop the override so the material's own emission shows again
-        if (propRenderer != null && propHighlight == null)
+        if (propRenderer != null && (propHighlight == null || !propHighlight.DrivesEmission))
         {
             propRenderer.SetPropertyBlock(null);
         }

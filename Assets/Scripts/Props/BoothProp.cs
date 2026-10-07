@@ -63,7 +63,24 @@ public class BoothProp : MonoBehaviour, IInteractable
             }
             else
             {
-                zoneCollider.size = new Vector3(2f, 2f, 2f);
+                // Any other collider: use its bounds (converted to local units) plus the same margin
+                Collider other = null;
+                foreach (Collider c in GetComponents<Collider>())
+                {
+                    if (c != zoneCollider && !c.isTrigger) { other = c; break; }
+                }
+                Vector3 scale = transform.lossyScale;
+                Vector3 absScale = new Vector3(Mathf.Max(0.0001f, Mathf.Abs(scale.x)), Mathf.Max(0.0001f, Mathf.Abs(scale.y)), Mathf.Max(0.0001f, Mathf.Abs(scale.z)));
+                if (other != null)
+                {
+                    Bounds b = other.bounds;
+                    zoneCollider.center = transform.InverseTransformPoint(b.center);
+                    zoneCollider.size = new Vector3((b.size.x + 1.2f) / absScale.x, b.size.y / absScale.y, (b.size.z + 1.2f) / absScale.z);
+                }
+                else
+                {
+                    zoneCollider.size = new Vector3(2f / absScale.x, 2f / absScale.y, 2f / absScale.z);
+                }
             }
         }
         zoneCollider.isTrigger = true;

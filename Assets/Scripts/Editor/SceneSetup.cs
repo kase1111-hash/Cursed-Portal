@@ -272,7 +272,14 @@ public static class SceneSetup
         light.range = 3.5f;
         light.intensity = 0.8f;
         light.color = new Color(1f, 0.7f, 0.45f);
-        sconce.AddComponent<CandleFlicker>();
+        SetFlickerBase(sconce.AddComponent<CandleFlicker>(), 0.8f); // CandleFlicker drives the light from its own fields
+    }
+
+    private static void SetFlickerBase(CandleFlicker flicker, float baseIntensity)
+    {
+        SerializedObject so = new SerializedObject(flicker);
+        so.FindProperty("baseIntensity").floatValue = baseIntensity;
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void CreateCandle(Transform parent, string name, Vector3 position, Material material)
@@ -294,7 +301,7 @@ public static class SceneSetup
         light.range = 3f;
         light.intensity = 1.2f;
         light.color = new Color(1f, 0.75f, 0.45f);
-        flame.AddComponent<CandleFlicker>(); // reacts to the spook level
+        SetFlickerBase(flame.AddComponent<CandleFlicker>(), 1.2f); // reacts to the spook level
     }
 
     // ------------------------------------------------------------------ VFX

@@ -99,7 +99,8 @@ public class CameraController : SceneSingletonBase<CameraController>
         {
             return;
         }
-        if (CursorManager.Instance != null && CursorManager.Instance.HasUnlockRequests())
+        if (CursorManager.Instance != null &&
+            (CursorManager.Instance.HasUnlockRequests() || !CursorManager.Instance.IsCursorLocked()))
         {
             return;
         }

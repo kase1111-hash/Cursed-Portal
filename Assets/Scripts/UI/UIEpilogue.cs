@@ -97,10 +97,12 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
             epilogueText.text = "";
         }
 
-        // Typewriter effect: reveal characters of the full text so rich-text tags never show half-typed
+        // Typewriter effect: set the whole text (LLM epilogue shown literally, then the closing quote) once and
+        // reveal it character by character, so tags never show half-typed and auto-sizing doesn't reflow mid-way
+        bool hasQuote = !string.IsNullOrEmpty(finalQuote);
         if (epilogueText != null)
         {
-            epilogueText.text = text;
+            epilogueText.text = Escape(text) + (hasQuote ? "\n\n" + finalQuote : "");
             epilogueText.maxVisibleCharacters = 0;
         }
 
@@ -136,19 +138,13 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
         // Pause before final quote
         yield return new WaitForSeconds(1f);
 
-        // Show everything that was typed, then add the final quote
-        if (epilogueText != null)
+        if (epilogueText != null && hasQuote)
         {
-            epilogueText.maxVisibleCharacters = int.MaxValue;
-        }
-
-        if (epilogueText != null && !string.IsNullOrEmpty(finalQuote))
-        {
-            epilogueText.text += "\n\n";
+            visible += 2; // the blank line before the quote
 
             foreach (char c in finalQuote)
             {
-                epilogueText.text += c;
+                epilogueText.maxVisibleCharacters = ++visible;
 
                 if (c == '.' || c == '!' || c == '?' || c == '"')
                 {
@@ -159,6 +155,11 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
                     yield return new WaitForSeconds(charDelay * 1.5f); // Slower for emphasis
                 }
             }
+        }
+
+        if (epilogueText != null)
+        {
+            epilogueText.maxVisibleCharacters = int.MaxValue;
         }
 
         // Wait before showing prompt
@@ -299,7 +300,7 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
 
         if (epilogueText != null)
         {
-            epilogueText.text = fullText + "\n\n" + finalQuote;
+            epilogueText.text = Escape(fullText) + "\n\n" + finalQuote;
             epilogueText.maxVisibleCharacters = int.MaxValue;
         }
 
@@ -373,6 +374,15 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
         {
             promptText.gameObject.SetActive(false);
         }
+    }
+
+    /// <summary>
+    /// Shows LLM text literally, so stray tags like &lt;s&gt; can't restyle the epilogue.
+    /// </summary>
+    private static string Escape(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return "<noparse>" + text.Replace("</noparse>", "</ noparse>") + "</noparse>";
     }
 
     /// <summary>

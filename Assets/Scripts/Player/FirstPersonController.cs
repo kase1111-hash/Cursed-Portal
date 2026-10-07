@@ -178,7 +178,8 @@ public class FirstPersonController : SceneSingletonBase<FirstPersonController>
     /// </summary>
     public bool IsMoving()
     {
-        // Actual velocity after collisions (walking into a wall is not moving)
+        // Actual velocity after collisions (walking into a wall is not moving); stale while movement is off
+        if (!canMove || !isActiveAndEnabled) return false;
         Vector3 horizontal = controller != null ? controller.velocity : Vector3.zero;
         horizontal.y = 0f;
         return horizontal.magnitude > 0.1f;

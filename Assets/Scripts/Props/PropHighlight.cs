@@ -303,6 +303,11 @@ public class PropHighlight : MonoBehaviour
     public bool IsHighlighted() => isHighlighted;
 
     /// <summary>
+    /// Whether this component drives the renderer's emission (Emission or Both mode).
+    /// </summary>
+    public bool DrivesEmission => highlightMode == HighlightMode.Emission || highlightMode == HighlightMode.Both;
+
+    /// <summary>
     /// Sets highlight color dynamically.
     /// </summary>
     public void SetHighlightColor(Color color)
