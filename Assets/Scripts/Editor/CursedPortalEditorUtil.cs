@@ -3,6 +3,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -69,10 +70,18 @@ public static class CursedPortalEditorUtil
         AssetDatabase.ImportAsset(path);
         TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(path);
         importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.wrapMode = TextureWrapMode.Clamp;
         importer.alphaIsTransparency = true;
         importer.mipmapEnabled = false;
         importer.SaveAndReimport();
-        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+
+        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (sprite == null)
+        {
+            Debug.LogError($"[CursedPortal] {path} did not import as a sprite; the vignette overlays will tint the whole screen.");
+        }
+        return sprite;
     }
 
     // ---------------------------------------------------------------- serialized fields
@@ -118,6 +127,16 @@ public static class CursedPortalEditorUtil
     /// </summary>
     public static bool BeginNewScene(string scenePath)
     {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            Debug.LogError("[CursedPortal] Exit Play mode before generating scenes.");
+            if (!Application.isBatchMode)
+            {
+                EditorUtility.DisplayDialog("CursedPortal", "Exit Play mode before generating scenes.", "OK");
+            }
+            return false;
+        }
+
         if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
         {
             return false;
@@ -137,14 +156,25 @@ public static class CursedPortalEditorUtil
 
     /// <summary>
     /// Saves the active scene to the given path and makes sure both game scenes are in Build Settings
-    /// (main scene first, so it is the one a build starts with).
+    /// (main scene first, so it is the one a build starts with). Returns false if the save failed.
     /// </summary>
-    public static void SaveSceneAndRegister(string scenePath)
+    public static bool SaveSceneAndRegister(string scenePath)
     {
         EnsureFolder(Path.GetDirectoryName(scenePath).Replace('\\', '/'));
-        EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath);
+        if (!EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath))
+        {
+            string message = $"Could not save {scenePath} (is the file read-only or locked?).";
+            Debug.LogError("[CursedPortal] " + message);
+            if (!Application.isBatchMode)
+            {
+                EditorUtility.DisplayDialog("CursedPortal", message, "OK");
+            }
+            return false;
+        }
+
         RegisterScenesInBuildSettings();
         Debug.Log($"[CursedPortal] Saved {scenePath} and updated Build Settings");
+        return true;
     }
 
     /// <summary>
@@ -182,7 +212,12 @@ public static class CursedPortalEditorUtil
     {
         if (Resources.Load<TMP_Settings>("TMP Settings") != null) return true;
 
-        TMP_PackageResourceImporter.ImportResources(true, false, false);
+        // The public import API only queues the package for a later editor tick (so a batch build would
+        // exit first); import it immediately when possible, else fall back to TMP's own (queued) import
+        if (!ImportTMPEssentialsImmediately())
+        {
+            TMP_PackageResourceImporter.ImportResources(true, false, false);
+        }
         AssetDatabase.Refresh();
 
         if (Resources.Load<TMP_Settings>("TMP Settings") != null) return true;
@@ -193,6 +228,31 @@ public static class CursedPortalEditorUtil
         if (!Application.isBatchMode)
         {
             EditorUtility.DisplayDialog("TextMesh Pro", message, "OK");
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Imports "TMP Essential Resources.unitypackage" from the uGUI (or legacy TextMesh Pro) package synchronously.
+    /// </summary>
+    private static bool ImportTMPEssentialsImmediately()
+    {
+        MethodInfo importNow = typeof(AssetDatabase).GetMethod("ImportPackageImmediately",
+            BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(string) }, null);
+        if (importNow == null) return false;
+
+        foreach (string packageName in new[] { "com.unity.ugui", "com.unity.textmeshpro" })
+        {
+            UnityEditor.PackageManager.PackageInfo info =
+                UnityEditor.PackageManager.PackageInfo.FindForAssetPath($"Packages/{packageName}/package.json");
+            if (info == null || string.IsNullOrEmpty(info.resolvedPath) || !Directory.Exists(info.resolvedPath)) continue;
+
+            string[] found = Directory.GetFiles(info.resolvedPath, "TMP Essential Resources.unitypackage", SearchOption.AllDirectories);
+            if (found.Length == 0) continue;
+
+            Debug.Log($"[CursedPortal] Importing {found[0]}");
+            object result = importNow.Invoke(null, new object[] { found[0] });
+            return result is bool imported && imported;
         }
         return false;
     }

@@ -41,7 +41,7 @@ public static class SceneSetup
         CreateEnvironment(managers.GetComponent<PostFXController>());
         CreateUI(managers.GetComponent<PortalSequence>(), interaction);
 
-        CursedPortalEditorUtil.SaveSceneAndRegister(CursedPortalEditorUtil.MainScenePath);
+        if (!CursedPortalEditorUtil.SaveSceneAndRegister(CursedPortalEditorUtil.MainScenePath)) return;
 
         string message = $"Saved {CursedPortalEditorUtil.MainScenePath} and added it to Build Settings.\n\n" +
                          "Next: CursedPortal > Create OtherDimension Scene (the portal's destination), " +
@@ -210,7 +210,7 @@ public static class SceneSetup
         // Mirror on the west wall: the Tell-Tale Heart narrator
         CreateSpiritProp(propsRoot.transform, "Mirror", "Narrator", PrimitiveType.Cube,
             new Vector3(-4.92f, 1.6f, 0f), new Vector3(0.05f, 2f, 1.2f), Quaternion.identity,
-            CreateLitMaterial("Mirror", new Color(0.55f, 0.6f, 0.65f), 0.98f, true, 1f),
+            CreateLitMaterial("Mirror", new Color(0.55f, 0.6f, 0.65f), 0.95f, true, 0.3f), // fully metallic would render black: there is little to reflect
             new Color(0.8f, 0.2f, 0.2f), new Vector3(0.6f, 0f, 0f));
 
         // Booth in the north-east corner: Roderick Usher
@@ -218,6 +218,10 @@ public static class SceneSetup
             new Vector3(3.6f, 1.1f, 3.6f), new Vector3(1.4f, 2.2f, 1.4f), Quaternion.Euler(0f, 45f, 0f),
             CreateLitMaterial("Booth", new Color(0.22f, 0.14f, 0.1f), 0.35f, true),
             new Color(0.3f, 0.6f, 0.4f), new Vector3(0f, 0f, -0.9f));
+
+        // Dim, flickering sconces so the mirror and booth can be found from across the room
+        CreateSconce(propsRoot.transform, "MirrorSconce", new Vector3(-4.6f, 2.9f, 0f));
+        CreateSconce(propsRoot.transform, "BoothSconce", new Vector3(2.6f, 2.6f, 2.6f));
 
         Debug.Log("[SceneSetup] Created Props (CrystalBall=Raven, Mirror=Narrator, Booth=Usher)");
         return crystalBall.transform;
@@ -256,6 +260,19 @@ public static class SceneSetup
         so.ApplyModifiedPropertiesWithoutUndo();
 
         return prop;
+    }
+
+    private static void CreateSconce(Transform parent, string name, Vector3 position)
+    {
+        GameObject sconce = new GameObject(name);
+        sconce.transform.SetParent(parent, false);
+        sconce.transform.position = position;
+        Light light = sconce.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.range = 3.5f;
+        light.intensity = 0.8f;
+        light.color = new Color(1f, 0.7f, 0.45f);
+        sconce.AddComponent<CandleFlicker>();
     }
 
     private static void CreateCandle(Transform parent, string name, Vector3 position, Material material)
@@ -513,6 +530,7 @@ public static class SceneSetup
         scrollObj.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.35f);
 
         ScrollRect scroll = scrollObj.GetComponent<ScrollRect>();
+        scroll.scrollSensitivity = 30f; // the default of 1 moves one pixel per mouse-wheel notch
         scroll.horizontal = false;
         scroll.vertical = true;
         scroll.movementType = ScrollRect.MovementType.Clamped;
@@ -587,7 +605,8 @@ public static class SceneSetup
     /// </summary>
     public static void CreateScreenEffects(bool withHeartbeat)
     {
-        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("ScreenEffectsCanvas", 50);
+        // Below the chat (10) so heartbeat pulses don't darken the text; above the HUD (5)
+        Canvas canvas = CursedPortalEditorUtil.CreateCanvas("ScreenEffectsCanvas", 8);
         Object.DestroyImmediate(canvas.GetComponent<GraphicRaycaster>());
 
         Sprite vignetteSprite = CursedPortalEditorUtil.VignetteSprite();

@@ -43,7 +43,7 @@ public static class OtherDimensionSetup
         CursedPortalEditorUtil.CreateEventSystem();
         CreateFinaleManager(narrator, epilogueUI, spiritCore, playerSpawn);
 
-        CursedPortalEditorUtil.SaveSceneAndRegister(CursedPortalEditorUtil.FinaleScenePath);
+        if (!CursedPortalEditorUtil.SaveSceneAndRegister(CursedPortalEditorUtil.FinaleScenePath)) return;
 
         string message = $"Saved {CursedPortalEditorUtil.FinaleScenePath} and added it to Build Settings.\n\n" +
                          "Play from the CursedPortal scene: the portal brings you here at spook level 5.";
@@ -186,7 +186,7 @@ public static class OtherDimensionSetup
     /// </summary>
     private static UIEpilogue CreateUIElements()
     {
-        // Above ScreenEffects (50) so the final message stays readable over the fade to white
+        // Above ScreenEffects so the final message stays readable over the fade to white
         Canvas canvas = CursedPortalEditorUtil.CreateCanvas("UIEpilogueCanvas", 100);
         UIEpilogue epilogue = canvas.gameObject.AddComponent<UIEpilogue>();
 
@@ -201,6 +201,10 @@ public static class OtherDimensionSetup
         TextMeshProUGUI text = CursedPortalEditorUtil.CreateText("EpilogueText", panel, "", 30f,
             TextAlignmentOptions.Center, new Color(0.9f, 0.8f, 1f), Vector2.zero, Vector2.one);
         text.margin = new Vector4(30f, 20f, 30f, 20f);
+        // An LLM epilogue plus the closing quote can run to ~11 lines; shrink rather than spill out of the panel
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 18f;
+        text.fontSizeMax = 30f;
 
         // Outside the panel's CanvasGroup so it can show while the panel is faded
         TextMeshProUGUI prompt = CursedPortalEditorUtil.CreateText("PromptText", canvas.transform, "[E] to Awaken", 26f,

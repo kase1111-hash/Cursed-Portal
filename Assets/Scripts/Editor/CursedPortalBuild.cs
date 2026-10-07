@@ -35,8 +35,8 @@ public static class CursedPortalBuild
 
         if (!CursedPortalEditorUtil.EnsureTMPResources())
         {
-            Debug.LogError("[CursedPortalBuild] TextMesh Pro Essential Resources are not imported yet. " +
-                           "Open the project once in the editor (or re-run this command) and try again.");
+            Debug.LogError("[CursedPortalBuild] TextMesh Pro Essential Resources could not be imported. " +
+                           "Open the project in the editor, run CursedPortal > Setup Main Scene once, then build again.");
             return false;
         }
 

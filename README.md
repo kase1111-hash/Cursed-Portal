@@ -38,7 +38,7 @@ Command-line build (from the project folder):
 "<Unity Hub>/Editor/2023.2.20f1/Editor/Unity" -batchmode -nographics -quit -logFile - \
     -projectPath . -executeMethod CursedPortalBuild.BuildWindows
 ```
-On a fresh clone, open the project in the editor once and run CursedPortal > Setup Main Scene (which imports the TextMesh Pro essentials) before building from the command line; otherwise the first batch build exits with an error asking you to re-run it.
+The build imports the TextMesh Pro essentials and generates any missing scene itself. If it reports that the TextMesh Pro resources could not be imported, open the project in the editor, run CursedPortal > Setup Main Scene once, and build again.
 
 ### Keys
 
