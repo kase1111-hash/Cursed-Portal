@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Project documentation and ecosystem links
-- SEO keywords and related repository connections
 - `SetupURP` (CursedPortal > Configure URP Render Pipeline) and `CursedPortalBuild` (menu and `-executeMethod` builds)
 - Scene generators now save `Assets/Scenes/CursedPortal.unity` / `OtherDimension.unity`, register them in Build Settings, and wire every reference (chat UI, EventSystem, HUD prompt, screen effects, debug panels, VFX, volume profiles, FinaleManager, player camera)
 
@@ -31,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Core Systems (M1-M10)
 - **M1 - Core Setup**: Base environment with URP lighting, fog, and player spawn
 - **M2 - Interaction Framework**: Raycast-based interaction system with IInteractable interface
-- **M3 - LLM Manager**: Central AI system for Poe spirit interactions via LLMUnity
+- **M3 - LLM Manager**: Central AI system for Poe spirit interactions via a local Ollama or llama.cpp server (UnityWebRequest)
 - **M4 - Event Manager**: Spook level system (0-5) with escalating horror effects
 - **M5 - Audio + VFX System**: Ambient audio, whispers, and particle effects
 - **M6 - Post-Processing Stack**: URP Volume profiles for horror intensity
@@ -70,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WebGL (with LLM fallback)
 
 ### Technical Details
-- Unity 2023.2 LTS with Universal Render Pipeline
+- Unity 2023.2 (2023.2.20f1, Tech Stream) with Universal Render Pipeline
 - Local LLM integration via Ollama/llama.cpp
 - ~11,200 lines of C# across 46 script files
 - Modular architecture with 25 independent modules

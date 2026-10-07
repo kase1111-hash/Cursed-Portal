@@ -47,11 +47,13 @@ Move `Assets/Scripts/Editor/` contents to `Assets/Scripts/_Deferred/Editor/`. Th
 *Done:* `Packages/manifest.json` lists URP 16, uGUI 2.0 (which contains TextMesh Pro on 2023.2 — do not add the separate `com.unity.textmeshpro` package), Cinemachine and Timeline. No Unity LLM package is needed: the scripts call Ollama / llama.cpp directly with UnityWebRequest.
 
 ### 1.3 — Import existing scripts
+*Done:* the scripts are already in `Assets/Scripts`; Unity generates their `.meta` files on first open.
 Copy `Assets/Scripts/` into the Unity project's `Assets/Scripts/`. Unity will auto-generate `.meta` files.
 
 **Expected:** The scripts compile with zero errors once the packages have resolved.
 
 ### 1.4 — Import streaming assets
+*Done:* StreamingAssets is in place; the PoeStories files are placeholders (download links inside each file).
 Copy `Assets/StreamingAssets/` into the Unity project. Verify:
 - `StreamingAssets/PoeStories/raven.txt` exists and contains the poem
 - `StreamingAssets/PoeStories/tell-tale-heart.txt` exists
@@ -61,6 +63,8 @@ Copy `Assets/StreamingAssets/` into the Unity project. Verify:
 If the Poe text files are empty placeholders, download the actual texts from Project Gutenberg now.
 
 ### 1.5 — Create SingletonBase<T>
+*Done:* `Core/SingletonBase.cs` defines `SingletonBase<T>` (persistent; DontDestroyOnLoad on the root object) for GameManager, EventManager, LLMManager, LLMStreamManager, AudioManager, VFXManager, PostFXController, PortalSequence, CursorManager and RitualLoop, and `SceneSingletonBase<T>` (scene-scoped) for UIChat, InteractionManager, FinaleManager and the other per-scene components. The original plan, kept for reference:
+
 Replace 13 copy-pasted singleton implementations with one generic base class:
 
 ```csharp

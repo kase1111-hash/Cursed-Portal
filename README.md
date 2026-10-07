@@ -14,7 +14,7 @@ An LLM-powered gothic horror game built on Unity. Chat with the spirits of Edgar
 
 1. Clone the repo and open the folder in Unity Hub (Unity 2023.2.20f1).
 2. Start Ollama (`ollama serve` if it isn't already running).
-3. Optional but recommended: download the Poe story texts from Project Gutenberg into `Assets/StreamingAssets/PoeStories/` (the included files are placeholders with the links inside; while they are placeholders the spirits simply get no story excerpt).
+3. Optional but recommended: download the Poe story texts from Project Gutenberg into `Assets/StreamingAssets/PoeStories/` (the included files are placeholders with the links inside; while they are placeholders the spirits simply get no story excerpt). Only the first ~4000 characters after Gutenberg's header are sent to the model, and the Tell-Tale Heart link is a multi-story volume, so keep just that story's text in `tell-tale-heart.txt`.
 4. Run **CursedPortal > Setup Main Scene**. It configures URP, imports the TextMesh Pro essentials if needed (re-run the menu item once that import finishes), then generates and saves `Assets/Scenes/CursedPortal.unity` and adds it to Build Settings.
 5. Run **CursedPortal > Create OtherDimension Scene** to generate and save the finale (`Assets/Scenes/OtherDimension.unity`).
 6. Open `Assets/Scenes/CursedPortal.unity` and press Play. Walk with WASD, look with the mouse, press **E** at the crystal ball (the Raven), the mirror (the Narrator) or the booth (Usher), type, and press Enter. **Esc** closes and reopens the chat.
@@ -31,13 +31,14 @@ Re-running a generator replaces that scene (you are asked first); generated mate
 | CursedPortal > Build Prefabs | Creates manager and prop prefabs in `Assets/Prefabs` (optional; the scene generators don't need them) |
 | CursedPortal > Wire Scene Objects | Assigns PostFXController's Volume and reports missing managers in the open scene |
 | CursedPortal > Validate Scene Setup | Reports missing managers, UI references, EventSystem, render pipeline and Build Settings entries |
-| CursedPortal > Build > Windows / Linux | Generates any missing scene and builds the player to `Builds/` |
+| CursedPortal > Build > Windows (64-bit) / Linux (64-bit) | Generates any missing scene and builds the player to `Builds/` |
 
 Command-line build (from the project folder):
 ```
 "<Unity Hub>/Editor/2023.2.20f1/Editor/Unity" -batchmode -nographics -quit -logFile - \
     -projectPath . -executeMethod CursedPortalBuild.BuildWindows
 ```
+On a fresh clone, open the project in the editor once and run CursedPortal > Setup Main Scene (which imports the TextMesh Pro essentials) before building from the command line; otherwise the first batch build exits with an error asking you to re-run it.
 
 ### Keys
 
@@ -66,7 +67,7 @@ The game defaults to **Ollama** on `localhost:11434` with model `llama3.2:3b`. T
 
 1. Select the **Managers** object in the scene
 2. Find the **LLMManager** component
-3. Change `Backend` (Ollama or LlamaCpp), `Endpoint`, and `Model` as needed
+3. Change **Backend** (Ollama or LlamaCpp), **Llm Endpoint** and **Ollama Model** as needed (temperature and max tokens for streamed replies are on the **LLMStreamManager** component)
 
 For **llama.cpp** instead of Ollama:
 ```

@@ -10,7 +10,7 @@ For a more detailed phase-by-phase guide, see `REBOOT_PLAN.md`.
 
 | Phase | Description | Key Deliverable |
 |-------|-------------|-----------------|
-| Phase 0 | Repository setup, LLMUnity install, URP project creation | Working Unity skeleton |
+| Phase 0 | Repository setup, Unity project + URP, local Ollama/llama.cpp server | Working Unity skeleton |
 | Phase 1 | Core scene, camera, and player controller (M1--M2) | Walkable gothic room |
 | Phase 2 | LLM integration and UI chat (M3, M7, M9) | Functional Poe spirit chat |
 | Phase 3 | Spook escalation logic (M4--M5--M6) | Dynamic atmosphere effects |
@@ -23,7 +23,7 @@ For a more detailed phase-by-phase guide, see `REBOOT_PLAN.md`.
 ## 3. Milestone Goals
 
 ### Milestone 1 -- Foundations Online
-- Unity project compiles with LLMUnity installed
+- Unity project compiles with zero errors
 - Scene "CursedPortal" loads and player can move
 - InteractionManager detects raycast hits
 - **Validation:** Build runs at >60 FPS with no console errors.

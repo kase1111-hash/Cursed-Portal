@@ -1,6 +1,6 @@
 🔮 Cursed Portal – Poe Parlor: AI-Generated Complete Unity Project
 Target: Unity 2023.2.20f1 (URP) | Local LLM: Ollama (default) or llama.cpp
-This is the design specification for the project, generated sequentially per spec (M1-M25). Note: The code samples below reflect the original specification and may differ from the current codebase (e.g., managers now use `SingletonBase<T>` instead of copy-paste singletons, default LLM backend is Ollama on port 11434, and VoiceSynth.cs has been removed). Always refer to the actual source files for current implementation.
+This is the design specification for the project, generated sequentially per spec (M1-M25). Note: The code samples below reflect the original specification and may differ from the current codebase (e.g., managers now use `SingletonBase<T>` instead of copy-paste singletons, default LLM backend is Ollama on port 11434, VoiceSynth.cs has been removed, no LLMUnity package is used (LLMManager/LLMStreamManager call Ollama or llama.cpp with UnityWebRequest), and TextMesh Pro comes from uGUI 2.0 rather than com.unity.textmeshpro). Always refer to the actual source files for current implementation.
 🚀 Quickstart Checklist
 
 Project Creation:
@@ -14,10 +14,8 @@ Poe Texts (Public Domain):
 Create folder Assets/StreamingAssets/PoeStories/
 Download & save (rename, strip headers if desired for purity):Spirit/StoryDirect TXT LinkSave AsRavenhttps://www.gutenberg.org/ebooks/1065.txt.utf-8raven.txtUsherhttps://www.gutenberg.org/ebooks/932.txt.utf-8usher.txtTell-Tale Hearthttps://www.gutenberg.org/files/2148/2148-0.txttell-tale-heart.txt
 
-Copy Files: Create folders/tree below. Paste each script/JSON/YAML.
-JSON Profiles: Create Assets/StreamingAssets/SpiritProfiles/poe_spirits.json (code below).
-Scenes: New Scene → CursedPortal.unity & OtherDimension.unity → Follow hierarchies (positions provided).
-Auto-Build: Tools > CursedPortal > Build Prefabs → Wire Scene Objects (both scenes).
+(Assets/StreamingAssets/PoeStories/ already ships placeholder files; replacing them is optional. The Tell-Tale Heart link is a multi-story volume: keep only that story.)
+Scenes: run CursedPortal > Setup Main Scene and CursedPortal > Create OtherDimension Scene; they generate, wire, save and register both scenes. CursedPortal > Build Prefabs is optional.
 Free Assets (Optional Polish):
 Room HDRI: Poly Haven Gothic Manor (CC0) → Skybox.
 Props: Asset Store "Abandoned Room" | Crystal: Sketchfab free | Furniture: Free Victorian packs.

@@ -27,7 +27,7 @@
 | LLMManager | `Assets/Scripts/AI/LLMManager.cs` | Spirit summoning, LLM API calls, memory loading |
 | AudioManager | `Assets/Scripts/AudioVFX/AudioManager.cs` | Whispers, SFX, ambient audio |
 | VFXManager | `Assets/Scripts/AudioVFX/VFXManager.cs` | Fog, ghost particles, portal effects |
-| PostFXController | `Assets/Scripts/AudioVFX/PostFXController.cs` | URP Volume control (vignette, fog, color) |
+| PostFXController | `Assets/Scripts/AudioVFX/PostFXController.cs` | URP Volume control (vignette, color grading, chromatic aberration, lens distortion) |
 | UIChat | `Assets/Scripts/UI/UIChat.cs` | Chat log display, input handling |
 | PortalSequence | `Assets/Scripts/Core/PortalSequence.cs` | Portal breach, scene transition |
 
@@ -152,21 +152,23 @@ public interface IInteractable {
 | 0 | Baseline ambience, faint whispers |
 | 1 | Orb glow, slight vignette increase |
 | 2 | Fog thickens, camera shake |
-| 3 | Loud whispers, ghost phantoms |
-| 4 | Mirror glitch, lens distortion |
-| 5 | FULL BREACH: red tint, max fog, portal sequence |
+| 3 | Louder whispers*, ghost phantoms, chromatic aberration |
+| 4 | Screen glitch (chromatic aberration + lens distortion), stronger camera shake |
+| 5 | FULL BREACH: red tint, max (red) fog, portal sequence |
+
+\*Audio only plays once clips are assigned on AudioManager; none ship with the repo.
 
 ### LLM Chat Flow
 1. UIChat.SendMessage() receives player input
 2. LLMManager.SummonSpirit() loads profile + story context + memory
 3. HTTP POST to Ollama endpoint (`localhost:11434/api/generate`) or llama.cpp (`localhost:8080/completion`)
 4. LLMStreamManager streams response chunks to UIChat
-5. EmotionParser analyzes each chunk for sentiment
-6. RitualLoop reacts to detected emotions, EventManager escalates spook level
+5. EmotionParser re-analyzes the reply accumulated so far; on each mood change EventManager.ReactToEmotion and RitualLoop.ReactToEmotion fire (fog burst, vignette pulse, heartbeat)
+6. When a reply to the player's own message completes, LLMStreamManager raises the spook level by 1 if its overall intensity is > 0.3 (greetings never escalate; the first summon of each spirit from a prop adds 1)
 7. SpiritMemory persists the exchange
 
 ### Scene Transition
-When spook level reaches 5, EventManager triggers OnDimensionBreach event, which starts PortalSequence to transition to OtherDimension.unity.
+When spook level reaches 5, EventManager raises OnDimensionBreach (GameManager switches to Transitioning) and calls PortalSequence.StartTransition(), which cancels the conversation, fades to black and loads OtherDimension.unity (or fades back and drops to level 4 if that scene isn't in Build Settings).
 
 ## Performance Targets
 - **Target FPS:** 60
@@ -187,8 +189,8 @@ When spook level reaches 5, EventManager triggers OnDimensionBreach event, which
 ### Adding a New Spirit
 1. Add story text to `Assets/StreamingAssets/PoeStories/`
 2. Add spirit definition to `poe_spirits.json` with story reference and system prompt
-3. JsonUtility can't read dictionaries, so also add a field with the same key to `LLMManager.SpiritProfiles`, a case in `LLMManager.GetProfile`, the story file to `LLMManager.LoadSpiritData`, and the key to `GetRandomSpiritKey`
-4. Bind a prop to it with `InteractableSpirit.spiritKey`
+3. JsonUtility can't read dictionaries, so also add a field with the same key to `LLMManager.SpiritProfiles`, a case in `LLMManager.GetProfile` (unknown keys silently fall back to the Raven), the story file to `LLMManager.LoadSpiritData`, and the key to `LLMManager.GetRandomSpiritKey` and to the `spirits` array in `EpilogueNarrator.BuildEpiloguePrompt` (otherwise its memories are left out of the finale)
+4. Bind a prop to it with `InteractableSpirit.spiritKey`; optionally add it to `TableProp.availableSpirits` and give it a case in `InteractableSpirit.TriggerInteractEffect`
 
 ### Adding a New Interactable Prop
 1. Create script in `Assets/Scripts/Props/` implementing IInteractable
@@ -196,16 +198,16 @@ When spook level reaches 5, EventManager triggers OnDimensionBreach event, which
 3. InteractionManager will automatically detect it
 
 ### Modifying Horror Effects
-1. Spook level changes trigger EventManager.OnSpookLevelChanged event
-2. Subscribe managers (Audio, VFX, PostFX) respond to level changes
-3. Adjust intensity curves in respective manager inspectors
+1. Spook level changes go through EventManager.ApplyEffectsForLevel, which calls AudioManager, VFXManager and PostFXController directly (continuous effects on every change, one-shot effects once per level)
+2. Scene components (CandleFlicker, AmbienceController, HeartbeatEffect, CameraShake, PortalDistort, FootstepSystem, PropAnimator, PropAmbientSound) subscribe to EventManager.OnSpookLevelChanged
+3. Adjust intensity values in the respective component inspectors
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | LLM not responding | Check Ollama is running on localhost:11434 (or llama.cpp on localhost:8080 if using that backend) |
-| Missing script references | The `.meta` files (script GUIDs) must be committed; regenerate the scenes with the CursedPortal menu |
+| Missing script references | Scenes and prefabs reference scripts by the GUIDs in their `.meta` files (not in the repo; Unity generates them). Regenerate the scenes with the CursedPortal menu, and commit the `.meta` files along with any scene or prefab you commit |
 | Chat does nothing / invisible | Regenerate with CursedPortal > Setup Main Scene; run Validate Scene Setup |
 | Magenta materials, no post-FX | Run CursedPortal > Configure URP Render Pipeline |
 | Portal goes black and returns | OtherDimension scene missing: run CursedPortal > Create OtherDimension Scene |
