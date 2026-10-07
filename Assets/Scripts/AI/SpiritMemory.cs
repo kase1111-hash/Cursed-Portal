@@ -49,9 +49,9 @@ public class SpiritMemory
     /// <param name="spiritResponse">The spirit's response</param>
     public void AddExchange(string userPrompt, string spiritResponse)
     {
-        // Convert to lists for easier manipulation
-        List<string> prompts = new List<string>(lastPrompts);
-        List<string> responses = new List<string>(lastResponses);
+        // Convert to lists for easier manipulation (arrays are null if missing from a saved file)
+        List<string> prompts = new List<string>(lastPrompts ?? new string[0]);
+        List<string> responses = new List<string>(lastResponses ?? new string[0]);
 
         // Add new exchange
         prompts.Add(userPrompt);
@@ -169,6 +169,14 @@ public class SpiritMemory
             {
                 string json = File.ReadAllText(path);
                 SpiritMemory memory = JsonUtility.FromJson<SpiritMemory>(json);
+                if (memory == null)
+                {
+                    return new SpiritMemory(spiritName);
+                }
+                if (string.IsNullOrEmpty(memory.spiritName))
+                {
+                    memory.spiritName = spiritName;
+                }
 
                 Debug.Log($"[SpiritMemory] Loaded memory for {spiritName} ({memory.totalInteractions} interactions)");
                 return memory;

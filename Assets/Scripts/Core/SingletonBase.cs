@@ -13,7 +13,8 @@ public abstract class SingletonBase<T> : MonoBehaviour where T : MonoBehaviour
         if (Instance == null)
         {
             Instance = this as T;
-            DontDestroyOnLoad(gameObject);
+            // DontDestroyOnLoad only works on root objects; managers may sit on child objects
+            DontDestroyOnLoad(transform.root.gameObject);
         }
         else
         {

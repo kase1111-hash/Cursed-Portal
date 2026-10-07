@@ -159,7 +159,7 @@ public class UIChat : SceneSingletonBase<UIChat>
             {
                 activeSpirit = "Raven"; // Default spirit
             }
-            LLMManager.Instance.SummonSpirit(activeSpirit);
+            LLMManager.Instance.SummonSpirit(activeSpirit, message);
         }
         else
         {

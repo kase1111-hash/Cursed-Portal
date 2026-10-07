@@ -34,6 +34,7 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
     private bool isDisplaying = false;
     private bool displayComplete = false;
     private Coroutine displayCoroutine;
+    private Coroutine pulseCoroutine;
 
     private void Start()
     {
@@ -96,12 +97,19 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
             epilogueText.text = "";
         }
 
-        // Typewriter effect
+        // Typewriter effect: reveal characters of the full text so rich-text tags never show half-typed
+        if (epilogueText != null)
+        {
+            epilogueText.text = text;
+            epilogueText.maxVisibleCharacters = 0;
+        }
+
+        int visible = 0;
         foreach (char c in text)
         {
             if (epilogueText != null)
             {
-                epilogueText.text += c;
+                epilogueText.maxVisibleCharacters = ++visible;
             }
 
             // Play type sound
@@ -128,7 +136,12 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
         // Pause before final quote
         yield return new WaitForSeconds(1f);
 
-        // Add final quote
+        // Show everything that was typed, then add the final quote
+        if (epilogueText != null)
+        {
+            epilogueText.maxVisibleCharacters = int.MaxValue;
+        }
+
         if (epilogueText != null && !string.IsNullOrEmpty(finalQuote))
         {
             epilogueText.text += "\n\n";
@@ -151,18 +164,11 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
         // Wait before showing prompt
         yield return new WaitForSeconds(promptDelay);
 
-        // Show awaken prompt
-        if (promptText != null)
-        {
-            promptText.gameObject.SetActive(true);
-            promptText.text = awakenPrompt;
-
-            // Pulse animation
-            StartCoroutine(PulsePrompt());
-        }
-
         isDisplaying = false;
         displayComplete = true;
+
+        // Show awaken prompt
+        ShowPrompt();
 
         Debug.Log("[UIEpilogue] Display complete, awaiting player input");
     }
@@ -173,6 +179,7 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
     private IEnumerator PulsePrompt()
     {
         if (promptText == null) yield break;
+        promptText.alpha = 1f;
 
         while (displayComplete)
         {
@@ -198,6 +205,8 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
                 yield return null;
             }
         }
+
+        pulseCoroutine = null;
     }
 
     /// <summary>
@@ -291,12 +300,7 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
         if (epilogueText != null)
         {
             epilogueText.text = fullText + "\n\n" + finalQuote;
-        }
-
-        if (promptText != null)
-        {
-            promptText.gameObject.SetActive(true);
-            promptText.text = awakenPrompt;
+            epilogueText.maxVisibleCharacters = int.MaxValue;
         }
 
         if (canvasGroup != null)
@@ -306,6 +310,26 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
 
         isDisplaying = false;
         displayComplete = true;
+        ShowPrompt();
+    }
+
+    /// <summary>
+    /// Stops the typewriter (e.g. when the player awakens before it finished).
+    /// </summary>
+    public void StopDisplay()
+    {
+        if (displayCoroutine != null)
+        {
+            StopCoroutine(displayCoroutine);
+            displayCoroutine = null;
+        }
+
+        if (epilogueText != null)
+        {
+            epilogueText.maxVisibleCharacters = int.MaxValue;
+        }
+
+        isDisplaying = false;
     }
 
     /// <summary>
@@ -314,13 +338,19 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
     /// </summary>
     public void ShowPrompt()
     {
+        displayComplete = true;
+
         if (promptText != null)
         {
             promptText.gameObject.SetActive(true);
             promptText.text = awakenPrompt;
-            StartCoroutine(PulsePrompt());
+
+            // Only one pulse animation at a time
+            if (pulseCoroutine == null)
+            {
+                pulseCoroutine = StartCoroutine(PulsePrompt());
+            }
         }
-        displayComplete = true;
     }
 
     /// <summary>
@@ -331,6 +361,12 @@ public class UIEpilogue : SceneSingletonBase<UIEpilogue>
         if (epilogueText != null)
         {
             epilogueText.text = message;
+            epilogueText.maxVisibleCharacters = int.MaxValue;
+        }
+
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 1f;
         }
 
         if (promptText != null)

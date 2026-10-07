@@ -2,6 +2,7 @@
 // Source: Module M3
 
 using UnityEngine;
+using UnityEngine.Networking;
 using System.IO;
 using System.Collections;
 
@@ -22,7 +23,7 @@ public class LLMManager : SingletonBase<LLMManager>
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
 
-    [Header("Current State")]
+    // Current state (properties are not serialized, so no inspector header)
     public string ActiveSpirit { get; private set; }
     public string ActiveStory { get; private set; }
 
@@ -50,83 +51,151 @@ public class LLMManager : SingletonBase<LLMManager>
     private System.Collections.Generic.Dictionary<string, string> cachedStories =
         new System.Collections.Generic.Dictionary<string, string>();
 
+    // On WebGL and Android, StreamingAssets is a URL and must be read with UnityWebRequest
+    private static bool StreamingAssetsIsUrl => Application.streamingAssetsPath.Contains("://");
+
     private void Start()
     {
-        LoadSpiritProfiles();
-        // Pre-load story files in background to avoid blocking during gameplay
-        StartCoroutine(PreloadStoryFiles());
+        // Load profiles and pre-load story files without blocking gameplay
+        StartCoroutine(LoadSpiritData());
     }
 
     /// <summary>
-    /// Pre-loads all story files into cache during startup.
+    /// Loads spirit profiles and story texts from StreamingAssets on every platform.
     /// </summary>
-    private IEnumerator PreloadStoryFiles()
+    private IEnumerator LoadSpiritData()
     {
-        string[] storyFiles = { "raven.txt", "tell-tale-heart.txt", "usher.txt" };
+        if (!profilesLoaded)
+        {
+            string json = null;
+            yield return ReadStreamingAsset(Path.Combine("SpiritProfiles", "poe_spirits.json"), text => json = text);
+            ApplyProfilesJson(json);
+        }
 
+        string[] storyFiles = { "raven.txt", "tell-tale-heart.txt", "usher.txt" };
         foreach (string storyFile in storyFiles)
         {
-            string storyPath = Path.Combine(Application.streamingAssetsPath, "PoeStories", storyFile);
+            if (cachedStories.ContainsKey(storyFile)) continue;
 
-            if (File.Exists(storyPath))
+            string fileContent = null;
+            yield return ReadStreamingAsset(Path.Combine("PoeStories", storyFile), text => fileContent = text);
+
+            if (fileContent != null)
             {
-                // Use a background thread for file I/O
-                string fileContent = null;
-                bool loadComplete = false;
-
-                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
-                {
-                    try
-                    {
-                        fileContent = File.ReadAllText(storyPath);
-                    }
-                    catch (System.Exception e)
-                    {
-                        Debug.LogWarning($"[LLMManager] Failed to preload {storyFile}: {e.Message}");
-                    }
-                    loadComplete = true;
-                });
-
-                // Wait for background load to complete
-                while (!loadComplete)
-                {
-                    yield return null;
-                }
-
-                if (!string.IsNullOrEmpty(fileContent))
-                {
-                    // Truncate to max context length
-                    int truncateLength = Mathf.Min(fileContent.Length, maxContextLength);
-                    cachedStories[storyFile] = fileContent.Substring(0, truncateLength);
-                    Debug.Log($"[LLMManager] Pre-loaded story: {storyFile}");
-                }
+                cachedStories[storyFile] = PrepareStoryExcerpt(storyFile, fileContent);
+                Debug.Log($"[LLMManager] Pre-loaded story: {storyFile}");
             }
-
-            // Yield between files to prevent frame hitches
-            yield return null;
         }
 
         Debug.Log($"[LLMManager] Story preloading complete. Cached {cachedStories.Count} stories.");
     }
 
     /// <summary>
-    /// Loads spirit profiles from JSON file.
+    /// Reads a text file under StreamingAssets (null if missing or unreadable).
+    /// </summary>
+    private static IEnumerator ReadStreamingAsset(string relativePath, System.Action<string> onLoaded)
+    {
+        string path = Path.Combine(Application.streamingAssetsPath, relativePath);
+
+        if (!StreamingAssetsIsUrl)
+        {
+            string text = null;
+            try
+            {
+                if (File.Exists(path)) text = File.ReadAllText(path);
+                else Debug.LogWarning($"[LLMManager] File not found: {path}");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[LLMManager] Failed to read {path}: {e.Message}");
+            }
+            onLoaded(text);
+            yield break;
+        }
+
+        using (UnityWebRequest request = UnityWebRequest.Get(path))
+        {
+            yield return request.SendWebRequest();
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                onLoaded(request.downloadHandler.text);
+            }
+            else
+            {
+                Debug.LogWarning($"[LLMManager] Failed to load {path}: {request.error}");
+                onLoaded(null);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parses the spirit profiles JSON.
+    /// </summary>
+    private void ApplyProfilesJson(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            Debug.LogError("[LLMManager] Spirit profiles could not be loaded from StreamingAssets/SpiritProfiles/poe_spirits.json");
+            return;
+        }
+
+        try
+        {
+            profiles = JsonUtility.FromJson<SpiritProfiles>(json);
+            profilesLoaded = profiles != null;
+            Debug.Log("[LLMManager] Spirit profiles loaded successfully.");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[LLMManager] Failed to parse poe_spirits.json: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Loads spirit profiles synchronously (desktop only; other platforms wait for LoadSpiritData).
     /// </summary>
     private void LoadSpiritProfiles()
     {
-        string jsonPath = Path.Combine(Application.streamingAssetsPath, "SpiritProfiles", "poe_spirits.json");
+        if (StreamingAssetsIsUrl) return;
 
+        string jsonPath = Path.Combine(Application.streamingAssetsPath, "SpiritProfiles", "poe_spirits.json");
         if (File.Exists(jsonPath))
         {
-            string json = File.ReadAllText(jsonPath);
-            profiles = JsonUtility.FromJson<SpiritProfiles>(json);
-            profilesLoaded = true;
-            Debug.Log("[LLMManager] Spirit profiles loaded successfully.");
+            ApplyProfilesJson(File.ReadAllText(jsonPath));
         }
         else
         {
             Debug.LogError($"[LLMManager] Spirit profiles not found at: {jsonPath}");
         }
+    }
+
+    /// <summary>
+    /// Strips Project Gutenberg boilerplate and truncates a story to the context budget.
+    /// Placeholder files (as shipped in the repo) yield an empty excerpt.
+    /// </summary>
+    private string PrepareStoryExcerpt(string storyFile, string text)
+    {
+        if (text.TrimStart().StartsWith("[PLACEHOLDER"))
+        {
+            Debug.LogWarning($"[LLMManager] {storyFile} is still a placeholder; download the full text from Project Gutenberg (see the link inside the file).");
+            return "";
+        }
+
+        // Keep only the story between Gutenberg's "*** START OF ..." and "*** END OF ..." markers
+        int start = text.IndexOf("*** START OF", System.StringComparison.OrdinalIgnoreCase);
+        if (start >= 0)
+        {
+            int lineEnd = text.IndexOf('\n', start);
+            text = lineEnd >= 0 ? text.Substring(lineEnd + 1) : text;
+        }
+        int end = text.IndexOf("*** END OF", System.StringComparison.OrdinalIgnoreCase);
+        if (end >= 0)
+        {
+            text = text.Substring(0, end);
+        }
+
+        text = text.Trim();
+        return text.Substring(0, Mathf.Min(text.Length, maxContextLength));
     }
 
     /// <summary>
@@ -152,12 +221,17 @@ public class LLMManager : SingletonBase<LLMManager>
     /// Summons a spirit and initiates conversation.
     /// </summary>
     /// <param name="spiritKey">The spirit to summon (Raven, Narrator, Usher)</param>
-    public void SummonSpirit(string spiritKey)
+    /// <param name="userMessage">What the player said; null when the spirit is summoned by a prop or zone</param>
+    public void SummonSpirit(string spiritKey, string userMessage = null)
     {
         SpiritProfile profile = GetProfile(spiritKey);
         if (profile == null)
         {
             Debug.LogError($"[LLMManager] Spirit profile not found: {spiritKey}");
+            if (UIChat.Instance != null)
+            {
+                UIChat.Instance.AppendSystem("*The spirits have not yet gathered... (spirit profiles not loaded)*");
+            }
             return;
         }
 
@@ -169,13 +243,16 @@ public class LLMManager : SingletonBase<LLMManager>
         // Build context with story and system prompt
         string context = BuildContext(profile);
 
-        // Get user's last message from chat
-        string userMessage = UIChat.Instance?.GetLastUserMessage() ?? "Who are you?";
+        // A summon without words (prop, trigger zone, debug key) opens with a greeting
+        if (string.IsNullOrWhiteSpace(userMessage))
+        {
+            userMessage = "Who are you?";
+        }
 
         // Start streaming response
         if (LLMStreamManager.Instance != null)
         {
-            StartCoroutine(LLMStreamManager.Instance.StreamSpiritSpeech(context, userMessage));
+            LLMStreamManager.Instance.StartStream(context, userMessage);
         }
         else
         {
@@ -204,9 +281,10 @@ public class LLMManager : SingletonBase<LLMManager>
             }
         }
 
-        // Build full prompt
+        // Build full prompt (the story section is omitted while the story file is a placeholder)
+        string storyContext = string.IsNullOrEmpty(storyText) ? "" : $"Story context (excerpt):\n{storyText}\n";
         string fullPrompt = $"{profile.prompt}\n\n" +
-                           $"Story context (excerpt):\n{storyText}\n" +
+                           storyContext +
                            $"{memoryContext}\n\n" +
                            "Respond in character, eerily and poetically. Keep responses under 100 words.";
 
@@ -225,20 +303,17 @@ public class LLMManager : SingletonBase<LLMManager>
             return cachedText;
         }
 
-        // Fallback to synchronous load if not cached (e.g., during preload)
+        // Fallback to synchronous load if not cached yet (desktop only; elsewhere the preload fills the cache)
         string storyPath = Path.Combine(Application.streamingAssetsPath, "PoeStories", storyFile);
 
-        if (File.Exists(storyPath))
+        if (!StreamingAssetsIsUrl && File.Exists(storyPath))
         {
-            string fullText = File.ReadAllText(storyPath);
-            // Truncate to max context length
-            int truncateLength = Mathf.Min(fullText.Length, maxContextLength);
-            string truncatedText = fullText.Substring(0, truncateLength);
+            string excerpt = PrepareStoryExcerpt(storyFile, File.ReadAllText(storyPath));
 
             // Cache for future use
-            cachedStories[storyFile] = truncatedText;
+            cachedStories[storyFile] = excerpt;
 
-            return truncatedText;
+            return excerpt;
         }
         else
         {
@@ -262,7 +337,8 @@ public class LLMManager : SingletonBase<LLMManager>
             {
                 model = ollamaModel,
                 prompt = fullPrompt,
-                stream = false
+                stream = false,
+                options = new OllamaOptions { temperature = temperature, num_predict = maxTokens }
             });
         }
         else
@@ -272,7 +348,7 @@ public class LLMManager : SingletonBase<LLMManager>
                 prompt = fullPrompt,
                 temperature = temperature,
                 n_predict = maxTokens,
-                stop = new string[] { "User:", "\n\n" }
+                stop = new string[] { "User:", "\nUser" }
             });
         }
 
@@ -411,6 +487,14 @@ public class LLMManager : SingletonBase<LLMManager>
         public string model;
         public string prompt;
         public bool stream;
+        public OllamaOptions options;
+    }
+
+    [System.Serializable]
+    private class OllamaOptions
+    {
+        public float temperature;
+        public int num_predict;
     }
 
     [System.Serializable]

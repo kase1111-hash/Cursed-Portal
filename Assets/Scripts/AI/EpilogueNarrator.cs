@@ -25,6 +25,19 @@ public class EpilogueNarrator : MonoBehaviour
     // State
     private bool hasNarrated = false;
 
+    private void Awake()
+    {
+        // The editor tools put the narrator next to the spirit core's light
+        if (spiritLight == null)
+        {
+            spiritLight = GetComponent<DimensionalLight>();
+        }
+        if (spiritLight == null)
+        {
+            spiritLight = FindFirstObjectByType<DimensionalLight>();
+        }
+    }
+
     private void Start()
     {
         if (!hasNarrated)
@@ -143,7 +156,8 @@ public class EpilogueNarrator : MonoBehaviour
                 {
                     model = LLMManager.Instance.OllamaModel,
                     prompt = prompt + "\n\nCollective Voice:",
-                    stream = false
+                    stream = false,
+                    options = new OllamaEpilogueOptions { temperature = 0.9f, num_predict = 150 }
                 });
             }
             else
@@ -162,7 +176,7 @@ public class EpilogueNarrator : MonoBehaviour
                 request.uploadHandler = new UnityEngine.Networking.UploadHandlerRaw(bodyRaw);
                 request.downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer();
                 request.SetRequestHeader("Content-Type", "application/json");
-                request.timeout = 30;
+                request.timeout = 120; // Whole reply arrives at once; allow for a cold model load on CPU
 
                 yield return request.SendWebRequest();
 
@@ -293,6 +307,14 @@ public class EpilogueNarrator : MonoBehaviour
         public string model;
         public string prompt;
         public bool stream;
+        public OllamaEpilogueOptions options;
+    }
+
+    [System.Serializable]
+    private class OllamaEpilogueOptions
+    {
+        public float temperature;
+        public int num_predict;
     }
 
     [System.Serializable]

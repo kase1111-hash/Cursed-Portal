@@ -85,10 +85,10 @@ public class RitualLoop : SingletonBase<RitualLoop>
     /// </summary>
     private void UpdateSmoothTransitions()
     {
-        // Don't override fog during portal transitions or finale
+        // Don't override fog during portal transitions or anywhere in the finale scene
         if (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
             return;
-        if (FinaleManager.Instance != null && FinaleManager.Instance.IsFinaleInProgress())
+        if (FinaleManager.Instance != null)
             return;
 
         // Smooth fog transition
@@ -249,8 +249,9 @@ public class RitualLoop : SingletonBase<RitualLoop>
 
     /// <summary>
     /// Resets the ritual loop to initial state.
+    /// (Not named Reset: Unity would call that in edit mode whenever the component is added.)
     /// </summary>
-    public void Reset()
+    public void ResetRitual()
     {
         currentEmotion = EmotionParser.NEUTRAL;
         emotionIntensity = 0f;

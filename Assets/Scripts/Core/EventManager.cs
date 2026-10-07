@@ -79,19 +79,23 @@ public class EventManager : SingletonBase<EventManager>
     /// <param name="level">Target level (0-5)</param>
     public void SetSpookLevel(int level)
     {
+        int previousLevel = SpookLevel;
         SpookLevel = Mathf.Clamp(level, 0, maxSpookLevel);
 
-        // Reset debounce for all levels above current (with bounds check)
+        // Reset debounce for all levels above current so they can fire again
         if (levelTriggered != null)
         {
-            for (int i = level + 1; i < levelTriggered.Length && i <= maxSpookLevel; i++)
+            for (int i = SpookLevel + 1; i < levelTriggered.Length; i++)
             {
                 levelTriggered[i] = false;
             }
         }
 
         ApplyEffectsForLevel(SpookLevel);
-        OnSpookLevelChanged?.Invoke(SpookLevel);
+        if (SpookLevel != previousLevel)
+        {
+            OnSpookLevelChanged?.Invoke(SpookLevel);
+        }
     }
 
     /// <summary>
@@ -108,16 +112,9 @@ public class EventManager : SingletonBase<EventManager>
             return;
         }
 
-        // Debounce - only trigger new level effects once
-        if (level > 0 && levelTriggered[level])
-        {
-            return;
-        }
-        levelTriggered[level] = true;
-
         Debug.Log($"[EventManager] Applying effects for level {level}");
 
-        // Coordinate with other managers (null checks for safety)
+        // Continuous effects always track the current level (also when it goes back down)
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayWhispers(level);
@@ -133,6 +130,13 @@ public class EventManager : SingletonBase<EventManager>
         {
             PostFXController.Instance.SetLevel(level);
         }
+
+        // Debounce - one-shot level effects (shakes, ghosts, breach) only fire once per level
+        if (level > 0 && levelTriggered[level])
+        {
+            return;
+        }
+        levelTriggered[level] = true;
 
         // Level-specific effects
         switch (level)
@@ -236,6 +240,10 @@ public class EventManager : SingletonBase<EventManager>
         if (CameraShake.Instance != null)
         {
             CameraShake.Instance.Shake(intensity, duration);
+        }
+        else if (CameraController.Instance != null)
+        {
+            CameraController.Instance.Shake(intensity, duration);
         }
     }
 

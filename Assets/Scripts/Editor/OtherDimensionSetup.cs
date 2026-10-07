@@ -75,8 +75,8 @@ public class OtherDimensionSetup : Editor
             renderer.material = mat;
         }
 
-        // Edge glow ring
-        GameObject edgeGlow = GameObject.CreatePrimitive(PrimitiveType.Torus);
+        // Edge glow ring (Unity has no torus primitive; a slightly wider, thin cylinder reads as a glowing rim)
+        GameObject edgeGlow = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         edgeGlow.name = "EdgeGlow";
         edgeGlow.transform.SetParent(platform.transform);
         edgeGlow.transform.localPosition = new Vector3(0f, 0.6f, 0f);

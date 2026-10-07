@@ -18,7 +18,8 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     [SerializeField] private string streamEndpoint = "http://localhost:11434/api/generate";
     [SerializeField] private float temperature = 0.8f;
     [SerializeField] private int maxTokens = 256;
-    [SerializeField] private float requestTimeout = 60f; // Timeout in seconds
+    [Tooltip("Abort if the server sends nothing for this many seconds (a slow but steady stream is never cut off)")]
+    [SerializeField] private float requestTimeout = 60f;
 
     [Header("Streaming Settings")]
     [SerializeField] private float chunkDelay = 0.05f; // Delay between chunk processing
@@ -28,16 +29,38 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     private readonly object streamLock = new object();
     private bool isStreaming = false;
     private Coroutine currentStreamCoroutine;
+    private Coroutine currentOuterCoroutine;
     private UnityWebRequest activeRequest; // Track active request for cancellation
+    private int streamGeneration = 0; // Incremented per stream so a cancelled stream can't clobber its replacement
+    private string activeUserMessage = ""; // The user message the current stream is answering
+    private string lastReactedEmotion = EmotionParser.NEUTRAL; // Emotion already reacted to during this stream
 
     /// <summary>
-    /// Starts streaming a spirit's response.
+    /// Starts streaming a spirit's response, cancelling any stream already in flight.
+    /// The coroutines run on this component so that a cancel can stop all of them.
     /// </summary>
     /// <param name="systemContext">The system prompt and context</param>
     /// <param name="userMessage">The user's message</param>
-    public IEnumerator StreamSpiritSpeech(string systemContext, string userMessage)
+    public void StartStream(string systemContext, string userMessage)
+    {
+        lock (streamLock)
+        {
+            if (isStreaming)
+            {
+                Debug.LogWarning("[LLMStreamManager] Already streaming, cancelling previous request");
+                CancelStreamInternal();
+            }
+        }
+        currentOuterCoroutine = StartCoroutine(StreamSpiritSpeech(systemContext, userMessage));
+    }
+
+    /// <summary>
+    /// Streams a spirit's response. Use StartStream to run it.
+    /// </summary>
+    private IEnumerator StreamSpiritSpeech(string systemContext, string userMessage)
     {
         // Cancel any in-flight stream before starting a new one
+        int generation;
         lock (streamLock)
         {
             if (isStreaming)
@@ -46,6 +69,9 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 CancelStreamInternal();
             }
             isStreaming = true;
+            generation = ++streamGeneration;
+            activeUserMessage = userMessage ?? "";
+            lastReactedEmotion = EmotionParser.NEUTRAL;
         }
 
         Debug.Log("[LLMStreamManager] Starting stream...");
@@ -68,8 +94,12 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 
         lock (streamLock)
         {
+            // A newer stream may have replaced this one while we waited; leave its state alone
+            if (generation != streamGeneration) yield break;
+
             isStreaming = false;
             currentStreamCoroutine = null;
+            currentOuterCoroutine = null;
             activeRequest = null;
         }
         Debug.Log("[LLMStreamManager] Stream complete");
@@ -91,7 +121,13 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
             {
                 model = LLMManager.Instance.OllamaModel,
                 prompt = prompt,
-                stream = true
+                stream = true,
+                options = new OllamaOptions
+                {
+                    temperature = temperature,
+                    num_predict = maxTokens,
+                    stop = new string[] { "User:" }
+                }
             });
         }
         else
@@ -102,7 +138,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 temperature = temperature,
                 n_predict = maxTokens,
                 stream = true,
-                stop = new string[] { "User:", "\n\n" }
+                stop = new string[] { "User:", "\nUser" } // not "\n\n": stanzas are separated by blank lines
             });
         }
 
@@ -120,35 +156,60 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
             request.uploadHandler = new UploadHandlerRaw(bodyRaw);
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
-            request.timeout = (int)requestTimeout;
+            request.timeout = 0; // No total limit; the idle timeout below handles a stalled server
 
-            // Send request
-            var operation = request.SendWebRequest();
+            // Send request (throws synchronously e.g. for plain-http hosts the player settings forbid)
+            UnityWebRequestAsyncOperation operation = null;
+            string sendError = null;
+            try
+            {
+                operation = request.SendWebRequest();
+            }
+            catch (System.Exception e)
+            {
+                sendError = e.Message;
+            }
+            if (operation == null)
+            {
+                Debug.LogError($"[LLMStreamManager] Could not send request to {endpoint}: {sendError}");
+                activeRequest = null;
+                OnStreamError(sendError);
+                yield break;
+            }
 
             StringBuilder fullResponse = new StringBuilder();
+            // Characters of downloadHandler.text already parsed. Always sits just after a newline so
+            // that a JSON line (or multi-byte character) split across network reads is parsed once complete.
             int lastProcessedLength = 0;
-            float startTime = Time.time;
+            ulong lastDownloadedBytes = 0;
+            float lastActivityTime = Time.realtimeSinceStartup;
 
-            // Process streaming response with timeout check
+            // Process streaming response with idle-timeout check
             while (!operation.isDone)
             {
-                // Check for timeout
-                if (Time.time - startTime > requestTimeout)
+                if (request.downloadedBytes != lastDownloadedBytes)
                 {
-                    Debug.LogError("[LLMStreamManager] Request timed out");
+                    lastDownloadedBytes = request.downloadedBytes;
+                    lastActivityTime = Time.realtimeSinceStartup;
+                }
+                else if (Time.realtimeSinceStartup - lastActivityTime > requestTimeout)
+                {
+                    Debug.LogError($"[LLMStreamManager] No data from the LLM server for {requestTimeout:F0}s, aborting");
                     request.Abort();
+                    activeRequest = null;
                     OnStreamError("Request timed out");
                     yield break;
                 }
 
-                // Check for new data
+                // Check for new complete lines
                 string currentData = request.downloadHandler.text;
-                if (currentData.Length > lastProcessedLength)
+                int lastNewline = currentData.LastIndexOf('\n');
+                if (lastNewline >= lastProcessedLength)
                 {
-                    string newChunk = currentData.Substring(lastProcessedLength);
-                    lastProcessedLength = currentData.Length;
+                    string newChunk = currentData.Substring(lastProcessedLength, lastNewline + 1 - lastProcessedLength);
+                    lastProcessedLength = lastNewline + 1;
 
-                    // Process the chunk (handles multiple SSE lines)
+                    // Process the chunk (handles multiple SSE / JSON lines)
                     yield return StartCoroutine(ProcessStreamChunk(newChunk, fullResponse));
                 }
 
@@ -174,8 +235,11 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
             }
             else
             {
-                Debug.LogError($"[LLMStreamManager] Stream failed: {request.error}");
-                OnStreamError(request.error);
+                // Ollama and llama.cpp report problems (e.g. model not pulled) as {"error": "..."}
+                string serverError = ExtractServerError(request.downloadHandler?.text);
+                string error = string.IsNullOrEmpty(serverError) ? request.error : $"{request.error}: {serverError}";
+                Debug.LogError($"[LLMStreamManager] Stream failed: {error}");
+                OnStreamError(error);
             }
         }
     }
@@ -195,25 +259,27 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 
         fullResponse.Append(content);
 
-        // Only process if chunk is meaningful
+        // Always show the text, however small the token
+        if (UIChat.Instance != null)
+        {
+            UIChat.Instance.AppendPartial(content);
+        }
+
+        // Only trigger side effects for meaningful chunks
         if (content.Length >= minChunkSize || content.Contains(" ") || content.Contains("."))
         {
-            // Update UI with partial response
-            if (UIChat.Instance != null)
-            {
-                UIChat.Instance.AppendPartial(content);
-            }
-
             // Trigger audio whisper
             if (AudioManager.Instance != null)
             {
                 AudioManager.Instance.StreamWhisper(content);
             }
 
-            // Analyze emotion and react
-            string emotion = EmotionParser.Detect(content);
-            if (emotion != EmotionParser.NEUTRAL)
+            // Analyze the reply so far (keywords can be split across tokens) and react only when the mood shifts
+            string emotion = EmotionParser.Detect(fullResponse.ToString());
+            if (emotion != EmotionParser.NEUTRAL && emotion != lastReactedEmotion)
             {
+                lastReactedEmotion = emotion;
+
                 if (EventManager.Instance != null)
                 {
                     EventManager.Instance.ReactToEmotion(emotion);
@@ -274,8 +340,8 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 }
                 catch
                 {
-                    // If not valid JSON, append raw content (minus data: prefix)
-                    if (!string.IsNullOrEmpty(jsonPart))
+                    // If not valid JSON, append raw content (minus data: prefix) unless it is broken JSON
+                    if (!string.IsNullOrEmpty(jsonPart) && !jsonPart.StartsWith("{"))
                     {
                         result.Append(jsonPart);
                     }
@@ -291,6 +357,13 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
                 if (ollamaResp != null && !string.IsNullOrEmpty(ollamaResp.response))
                 {
                     result.Append(ollamaResp.response);
+                    continue;
+                }
+                if (ollamaResp != null && !string.IsNullOrEmpty(ollamaResp.error))
+                {
+                    // Ollama can report a failure mid-stream with HTTP 200
+                    Debug.LogError($"[LLMStreamManager] LLM server error: {ollamaResp.error}");
+                    OnStreamError(ollamaResp.error);
                     continue;
                 }
 
@@ -315,11 +388,34 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     }
 
     /// <summary>
+    /// Extracts the "error" message from an LLM server error body, if present.
+    /// </summary>
+    private static string ExtractServerError(string body)
+    {
+        if (string.IsNullOrEmpty(body)) return null;
+        try
+        {
+            ServerErrorResponse err = JsonUtility.FromJson<ServerErrorResponse>(body.Trim());
+            return err?.error;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Called when streaming completes successfully.
     /// </summary>
     private void OnStreamComplete(string fullResponse)
     {
         Debug.Log($"[LLMStreamManager] Full response: {fullResponse.Length} chars");
+
+        if (string.IsNullOrWhiteSpace(fullResponse))
+        {
+            OnStreamError("the spirit returned only silence");
+            return;
+        }
 
         // Final emotion analysis
         EmotionAnalysis analysis = EmotionParser.AnalyzeDetailed(fullResponse);
@@ -331,11 +427,10 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
             EventManager.Instance.IncrementSpook(1);
         }
 
-        // Save to memory
+        // Save to memory (the message this stream answered, not whatever was typed since)
         if (LLMManager.Instance != null)
         {
-            string userMsg = UIChat.Instance?.GetLastUserMessage() ?? "";
-            LLMManager.Instance.SaveToMemory(userMsg, fullResponse);
+            LLMManager.Instance.SaveToMemory(activeUserMessage, fullResponse);
         }
 
         // Notify completion
@@ -361,6 +456,12 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     /// </summary>
     private void CancelStreamInternal()
     {
+        if (currentOuterCoroutine != null)
+        {
+            StopCoroutine(currentOuterCoroutine);
+            currentOuterCoroutine = null;
+        }
+
         if (currentStreamCoroutine != null)
         {
             StopCoroutine(currentStreamCoroutine);
@@ -369,7 +470,9 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
 
         if (activeRequest != null)
         {
+            // The stopped coroutine never reaches the end of its using block, so dispose here
             activeRequest.Abort();
+            activeRequest.Dispose();
             activeRequest = null;
         }
 
@@ -381,11 +484,16 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     /// </summary>
     public void CancelStream()
     {
+        bool wasStreaming;
         lock (streamLock)
         {
+            wasStreaming = isStreaming;
             CancelStreamInternal();
         }
-        Debug.Log("[LLMStreamManager] Stream cancelled");
+        if (wasStreaming)
+        {
+            Debug.Log("[LLMStreamManager] Stream cancelled");
+        }
     }
 
     /// <summary>
@@ -416,6 +524,21 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
         public string model;
         public string prompt;
         public bool stream;
+        public OllamaOptions options;
+    }
+
+    [System.Serializable]
+    private class OllamaOptions
+    {
+        public float temperature;
+        public int num_predict;
+        public string[] stop;
+    }
+
+    [System.Serializable]
+    private class ServerErrorResponse
+    {
+        public string error;
     }
 
     [System.Serializable]
@@ -431,6 +554,7 @@ public class LLMStreamManager : SingletonBase<LLMStreamManager>
     {
         public string response;
         public bool done;
+        public string error;
     }
 
     protected override void OnDestroy()

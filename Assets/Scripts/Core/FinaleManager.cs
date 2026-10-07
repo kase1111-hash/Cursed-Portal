@@ -101,6 +101,21 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
 
             Debug.Log("[FinaleManager] Player spawned at finale position");
         }
+
+        // A scene without a player rig would render nothing; fall back to a static camera
+        if (Camera.main == null)
+        {
+            GameObject cameraObj = new GameObject("FinaleCamera");
+            cameraObj.tag = "MainCamera";
+            cameraObj.AddComponent<Camera>();
+            cameraObj.AddComponent<AudioListener>();
+            if (playerSpawn != null)
+            {
+                cameraObj.transform.SetPositionAndRotation(playerSpawn.position, playerSpawn.rotation);
+            }
+            Debug.LogWarning("[FinaleManager] No camera in the finale scene; created a fallback camera. " +
+                             "Regenerate the scene with CursedPortal > Create OtherDimension Scene.");
+        }
     }
 
     /// <summary>
@@ -110,6 +125,17 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
     {
         finaleStarted = true;
         Debug.Log("[FinaleManager] Finale sequence started");
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.SetState(GameManager.GameState.Epilogue);
+        }
+
+        // Let the portal finish fading in before taking over fog and audio
+        while (PortalSequence.Instance != null && PortalSequence.Instance.IsTransitioning())
+        {
+            yield return null;
+        }
 
         // Phase 1: Fade in ambience
         yield return StartCoroutine(FadeInAmbience());
@@ -126,7 +152,15 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
         // Phase 4: Intensify effects over time
         yield return StartCoroutine(IntensifyEffects());
 
-        // Phase 5: Mark epilogue complete
+        // Phase 5: Wait until the epilogue has actually been shown in full (the LLM may still be writing it)
+        if (uiEpilogue != null && epilogueNarrator != null)
+        {
+            float waitStart = Time.time;
+            while (!uiEpilogue.IsDisplayComplete() && Time.time - waitStart < 120f)
+            {
+                yield return null;
+            }
+        }
         epilogueComplete = true;
 
         // Phase 6: Show awakening prompt
@@ -214,6 +248,7 @@ public class FinaleManager : SceneSingletonBase<FinaleManager>
         // Display final message
         if (uiEpilogue != null)
         {
+            uiEpilogue.StopDisplay();
             uiEpilogue.ShowFinalMessage("You awaken... but the whispers linger.");
         }
 

@@ -184,3 +184,5 @@ PlayerSettings:
   bundleVersion: 0.1.0
   preloadedAssets: []
   m_GraphicsJobsMode: 0
+  activeInputHandler: 0
+  insecureHttpOption: 2
